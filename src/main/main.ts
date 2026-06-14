@@ -2,7 +2,8 @@ import { app, BrowserWindow, Menu } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import path from 'path'
 import { registerIpcHandlers } from './ipc'
-import { readConfig, saveAuthToken } from './store'
+import { readConfig, saveAuthToken, saveAuthUser } from './store'
+import { fetchAuthUser } from './auth'
 import { syncAllWorkspaceGithub } from './workspaceGithub'
 import {
   AUTH_DEEP_LINK_HOST,
@@ -26,18 +27,28 @@ if (!gotSingleInstanceLock) {
   app.quit()
 }
 
-function handleDeepLink(url: string): void {
+async function handleDeepLink(url: string): Promise<void> {
+  let token: string
   try {
     const parsed = new URL(url)
     if (parsed.protocol !== `${DEEP_LINK_PROTOCOL}:` || parsed.hostname !== AUTH_DEEP_LINK_HOST) return
-    const token = parsed.searchParams.get('token')
-    if (!token) return
-    saveAuthToken(token)
-    mainWindow?.webContents.send('auth:token-received', token)
-    if (mainWindow?.isMinimized()) mainWindow.restore()
-    mainWindow?.focus()
+    const tokenParam = parsed.searchParams.get('token')
+    if (!tokenParam) return
+    token = tokenParam
   } catch {
-    // malformed URL — ignore
+    return // malformed URL — ignore
+  }
+
+  if (mainWindow?.isMinimized()) mainWindow.restore()
+  mainWindow?.focus()
+
+  try {
+    saveAuthToken(token)
+    const user = await fetchAuthUser(token)
+    saveAuthUser(user)
+    mainWindow?.webContents.send('auth:changed', user)
+  } catch (err) {
+    mainWindow?.webContents.send('auth:error', err instanceof Error ? err.message : 'Sign-in failed')
   }
 }
 
@@ -64,13 +75,13 @@ export function setupAutoUpdater(win: BrowserWindow): void {
 // macOS: deep link arrives via open-url while app is running
 app.on('open-url', (event, url) => {
   event.preventDefault()
-  handleDeepLink(url)
+  void handleDeepLink(url)
 })
 
 // Windows / Linux: second instance receives the protocol URL in argv
 app.on('second-instance', (_, argv) => {
   const url = argv.find(arg => arg.startsWith(`${DEEP_LINK_PROTOCOL}://`))
-  if (url) handleDeepLink(url)
+  if (url) void handleDeepLink(url)
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore()
     mainWindow.focus()

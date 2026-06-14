@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { AuthUser } from '../shared/types'
 
 const initialData = ipcRenderer.sendSync('workspaces:initial-data')
 
@@ -76,14 +77,19 @@ const api = {
     },
   },
   auth: {
-    getToken: () => ipcRenderer.invoke('auth:get-token'),
-    clearToken: () => ipcRenderer.invoke('auth:clear-token'),
+    getUser: () => ipcRenderer.invoke('auth:get-user'),
+    signOut: () => ipcRenderer.invoke('auth:sign-out'),
     openSignIn: () => ipcRenderer.invoke('auth:open-sign-in'),
     getSignInUrl: () => ipcRenderer.invoke('auth:get-sign-in-url') as Promise<string>,
-    onTokenReceived: (cb: (token: string) => void) => {
-      const handler = (_: unknown, token: string) => cb(token)
-      ipcRenderer.on('auth:token-received', handler)
-      return () => ipcRenderer.removeListener('auth:token-received', handler)
+    onChanged: (cb: (user: AuthUser) => void) => {
+      const handler = (_: unknown, user: AuthUser) => cb(user)
+      ipcRenderer.on('auth:changed', handler)
+      return () => ipcRenderer.removeListener('auth:changed', handler)
+    },
+    onError: (cb: (message: string) => void) => {
+      const handler = (_: unknown, message: string) => cb(message)
+      ipcRenderer.on('auth:error', handler)
+      return () => ipcRenderer.removeListener('auth:error', handler)
     },
   },
   claude: {

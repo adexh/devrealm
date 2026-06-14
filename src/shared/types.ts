@@ -153,10 +153,22 @@ export type AppInsights = {
   updatedAt: number
 }
 
+export type AuthUser = {
+  id: string
+  email: string | null
+  firstName: string | null
+  lastName: string | null
+  imageUrl: string | null
+  // True only when the user uploaded a real photo. Clerk returns a generated
+  // default avatar in imageUrl otherwise, which we ignore in favor of initials.
+  hasImage: boolean
+}
+
 export type AppConfig = {
   editorSettings?: CodeEditorSettings
   darkMode?: boolean
   authToken?: string
+  authUser?: AuthUser
 }
 
 export type ClaudeMdFile = {

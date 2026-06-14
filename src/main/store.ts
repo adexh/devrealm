@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import defaultEditorSettingsJson from '../shared/config/codeEditors.json'
-import type { AppConfig, AppData, AppInsights, Workspace, Repo, CodeEditorConfig, CodeEditorSettings } from '../shared/types'
+import type { AppConfig, AppData, AppInsights, AuthUser, Workspace, Repo, CodeEditorConfig, CodeEditorSettings } from '../shared/types'
 import { CONFIG_FILE_NAME, DATA_DIR_NAME, SCHEMA_VERSION, STALE_REPO_MS, WORKSPACES_FILE_NAME } from './constants'
 
 const DATA_DIR = path.join(os.homedir(), DATA_DIR_NAME)
@@ -234,8 +234,19 @@ export function saveAuthToken(token: string): void {
   writeConfig(config)
 }
 
-export function clearAuthToken(): void {
+export function getAuthUser(): AuthUser | null {
+  return readConfig().authUser ?? null
+}
+
+export function saveAuthUser(user: AuthUser): void {
+  const config = readConfig()
+  config.authUser = user
+  writeConfig(config)
+}
+
+export function clearAuth(): void {
   const config = readConfig()
   delete config.authToken
+  delete config.authUser
   writeConfig(config)
 }
