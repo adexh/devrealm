@@ -1,0 +1,139 @@
+{
+  "name": "dev-realm",
+  "version": "1.1.0",
+  "description": "Workspace Management application",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:main\" \"npm run dev:electron\"",
+    "dev:renderer": "vite",
+    "dev:main": "tsc -p tsconfig.main.json -w --preserveWatchOutput",
+    "dev:electron": "wait-on http://localhost:5173 dist/main/main.js && NODE_ENV=development node scripts/electron-dev.js",
+    "lint": "npm run lint:main && npm run lint:renderer",
+    "lint:main": "tsc -p tsconfig.main.json --noEmit",
+    "lint:renderer": "tsc -p tsconfig.renderer.json --noEmit",
+    "build": "npm run build:renderer && npm run build:main",
+    "build:renderer": "vite build",
+    "build:main": "tsc -p tsconfig.main.json",
+    "start": "electron dist/main/main.js",
+    "package": "npm run build && node scripts/package.js"
+  },
+  "build": {
+    "appId": "com.devrealm.app",
+    "productName": "DevRealm",
+    "publish": {
+      "provider": "github",
+      "owner": "adexh",
+      "repo": "devrealm",
+      "releaseType": "release"
+    },
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "icon": "icons/mac/icon.icns",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "icon": "icons/win/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "linux": {
+      "icon": "icons/png/512x512.png",
+      "maintainer": "Adesh Tamrakar <adesh.t@outlook.com>",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adexh/workspace-management.git"
+  },
+  "keywords": [],
+  "author": {
+    "name": "Adesh Tamrakar",
+    "email": "adesh.t@outlook.com"
+  },
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/adexh/workspace-management/issues"
+  },
+  "homepage": "https://github.com/adexh/workspace-management#readme",
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.0",
+    "@types/node": "^25.6.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.2.1",
+    "electron": "^42.0.1",
+    "electron-builder": "^26.8.1",
+    "tailwind-scrollbar": "^4.0.2",
+    "tailwindcss": "^4.3.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.12",
+    "wait-on": "^9.0.10"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.4.1",
+    "@lexical/code": "^0.44.0",
+    "@lexical/extension": "^0.44.0",
+    "@lexical/history": "^0.44.0",
+    "@lexical/link": "^0.44.0",
+    "@lexical/list": "^0.44.0",
+    "@lexical/markdown": "^0.44.0",
+    "@lexical/react": "^0.44.0",
+    "@lexical/rich-text": "^0.44.0",
+    "@lexical/selection": "^0.44.0",
+    "@xterm/xterm": "^6.0.0",
+    "classnames": "^2.5.1",
+    "electron-updater": "^6.8.3",
+    "fuse.js": "^7.3.0",
+    "lexical": "^0.44.0",
+    "lucide-react": "^1.14.0",
+    "react": "^19.2.6",
+    "react-arborist": "^3.10.1",
+    "react-dom": "^19.2.6",
+    "simple-git": "^3.36.0",
+    "zustand": "^5.0.13"
+  }
+}

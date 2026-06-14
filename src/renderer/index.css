@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@plugin 'tailwind-scrollbar';
+
+/* ── Theme tokens ───────────────────────────────────────────── */
+:root {
+  --t-bg: #ffffff;
+  --t-panel: #fafaf9;
+  --t-panel-alt: #f4f3f0;
+  --t-ink: #1a1a1a;
+  --t-ink-soft: #797676;
+  --t-ink-softer: #757474;
+  --t-line: #d8d6d2;
+  --t-line-soft: #e8e6e2;
+  --t-accent-bg: #1a1a1a;
+  --t-accent-ink: #ffffff;
+  --t-hatch: rgba(0, 0, 0, 0.04);
+  --t-chip: #eeece7;
+}
+
+.dark {
+  --t-bg: #0c0c0c;
+  --t-panel: #202020;
+  --t-panel-alt: #2a2a28;
+  --t-ink: #f0efeb;
+  --t-ink-soft: #b4b2b2;
+  --t-ink-softer: #cdcbcb;
+  --t-line: #393939;
+  --t-line-soft: #2e2c2a;
+  --t-accent-bg: #f0efeb;
+  --t-accent-ink: #1a1a1a;
+  --t-hatch: rgba(255, 255, 255, 0.04);
+  --t-chip: #353535;
+}
+
+/* ── Tailwind theme mapping ─────────────────────────────────── */
+@theme inline {
+  --color-t-bg: var(--t-bg);
+  --color-t-panel: var(--t-panel);
+  --color-t-panel-alt: var(--t-panel-alt);
+  --color-t-ink: var(--t-ink);
+  --color-t-ink-soft: var(--t-ink-soft);
+  --color-t-ink-softer: var(--t-ink-softer);
+  --color-t-line: var(--t-line);
+  --color-t-line-soft: var(--t-line-soft);
+  --color-t-accent-bg: var(--t-accent-bg);
+  --color-t-accent-ink: var(--t-accent-ink);
+  --color-t-chip: var(--t-chip);
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-system: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+
+/* ── Global resets ──────────────────────────────────────────── */
+button {
+  font-family: inherit;
+}
+
+input,
+textarea {
+  font-family: inherit;
+  outline: none;
+}
+
+/* ── Markdown editor content ────────────────────────────────── */
+[aria-label="Markdown editor"] hr {
+  border: none;
+  border-top: 1px solid var(--t-line);
+  margin: 1rem 0;
+}

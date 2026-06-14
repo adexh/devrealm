@@ -1,0 +1,176 @@
+name: Build Electron App
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'Version bump type (use "rebuild" to re-run without bumping)'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - rebuild
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+      release_notes: ${{ steps.notes.outputs.release_notes }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.12.0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version and push tag
+        id: bump
+        run: |
+          if [ "${{ inputs.version_bump }}" = "rebuild" ]; then
+            git fetch --tags
+            LATEST_TAG=$(git describe --tags --abbrev=0)
+            echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          else
+            NEW_VERSION=$(npm version ${{ inputs.version_bump }} --no-git-tag-version)
+            NEW_VERSION=${NEW_VERSION#v}
+            git add package.json package-lock.json
+            git commit -m "chore: bump version to $NEW_VERSION"
+            git tag "v$NEW_VERSION"
+            git push origin HEAD:${{ github.ref_name }}
+            git push origin "v$NEW_VERSION"
+            echo "tag=v$NEW_VERSION" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          CURRENT_TAG="${{ steps.bump.outputs.tag }}"
+          # Find the previous tag to build the diff range
+          PREV_TAG=$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null || echo "")
+
+          if [ -z "$PREV_TAG" ]; then
+            RAW=$(git log "${CURRENT_TAG}" --pretty=format:"- %s (%h)" --no-merges)
+          else
+            RAW=$(git log "${PREV_TAG}..${CURRENT_TAG}" --pretty=format:"- %s (%h)" --no-merges)
+          fi
+
+          # Categorise commits
+          FEATURES=$(echo "$RAW" | grep -iE "^\- (feat|feature|add)" || true)
+          FIXES=$(echo "$RAW" | grep -iE "^\- (fix|bug)" || true)
+          CHORES=$(echo "$RAW" | grep -iE "^\- (chore|refactor|perf|build|ci|docs|style|test)" || true)
+          OTHER=$(echo "$RAW" | grep -ivE "^\- (feat|feature|add|fix|bug|chore|refactor|perf|build|ci|docs|style|test)" || true)
+
+          NOTES=""
+          if [ -n "$FEATURES" ]; then
+            NOTES="${NOTES}## What's New\n${FEATURES}\n\n"
+          fi
+          if [ -n "$FIXES" ]; then
+            NOTES="${NOTES}## Bug Fixes\n${FIXES}\n\n"
+          fi
+          if [ -n "$CHORES" ]; then
+            NOTES="${NOTES}## Maintenance\n${CHORES}\n\n"
+          fi
+          if [ -n "$OTHER" ]; then
+            NOTES="${NOTES}## Other Changes\n${OTHER}\n\n"
+          fi
+
+          if [ -z "$NOTES" ]; then
+            NOTES="No significant changes recorded."
+          fi
+
+          # Write multiline output safely
+          {
+            echo "release_notes<<RELEASE_NOTES_EOF"
+            printf "%b" "$NOTES"
+            echo "RELEASE_NOTES_EOF"
+          } >> $GITHUB_OUTPUT
+
+  release:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create draft GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: ${{ needs.version.outputs.tag }}
+          body: ${{ needs.version.outputs.release_notes }}
+          draft: true
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    needs: [version, release]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: mac
+          - os: windows-latest
+            platform: win
+          - os: ubuntu-latest
+            platform: linux
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.12.0
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app
+        run: npm run build
+
+      - name: Package (macOS)
+        if: matrix.platform == 'mac'
+        run: npx electron-builder --mac --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package (Windows)
+        if: matrix.platform == 'win'
+        run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package (Linux)
+        if: matrix.platform == 'linux'
+        run: npx electron-builder --linux --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

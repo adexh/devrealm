@@ -1,0 +1,45 @@
+{
+  "defaultEditorId": "vscode",
+  "editors": [
+    {
+      "id": "vscode",
+      "label": "VS Code",
+      "macAppName": "Visual Studio Code",
+      "linuxCommand": "code",
+      "windowsExecutablePaths": [
+        {
+          "env": "LOCALAPPDATA",
+          "segments": ["Programs", "Microsoft VS Code", "Code.exe"]
+        },
+        {
+          "absolutePath": "C:\\Program Files\\Microsoft VS Code\\Code.exe"
+        }
+      ],
+      "installUrl": "https://code.visualstudio.com"
+    },
+    {
+      "id": "cursor",
+      "label": "Cursor",
+      "macAppName": "Cursor",
+      "linuxCommand": "cursor",
+      "windowsExecutablePaths": [
+        {
+          "env": "LOCALAPPDATA",
+          "segments": ["Programs", "Cursor", "Cursor.exe"]
+        },
+        {
+          "absolutePath": "C:\\Program Files\\Cursor\\Cursor.exe"
+        }
+      ],
+      "installUrl": "https://cursor.com"
+    },
+    {
+      "id": "vim",
+      "label": "Vim",
+      "macCommand": "vim",
+      "linuxCommand": "vim",
+      "windowsCommand": "vim",
+      "installUrl": "https://www.vim.org"
+    }
+  ]
+}

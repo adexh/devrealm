@@ -1,0 +1,6 @@
+export { AIConfigScreen } from './components/AIConfigScreen'
+export { McpRegistryScreen } from './components/McpRegistryScreen'
+export { RegistryMcpServerTile } from './components/RegistryMcpServerTile'
+export { fetchMcpRegistry } from './ipc/mcpRegistry'
+export { removePlugin, setPluginEnabled } from './ipc/plugins'
+export type { McpRegistryResponse, RegistryMcpServer } from './types/mcpRegistry'
