@@ -17,6 +17,7 @@ import type {
   WorkspaceGithubPushResult,
   WorkspaceGithubSyncResult,
   WorkspaceFileTreeNode,
+  AuthUser,
 } from '../shared/types'
 
 interface ElectronAPI {
@@ -76,11 +77,12 @@ interface ElectronAPI {
     createFile: (data: MarkdownFileWriteRequest) => Promise<MarkdownFileMetadata>
   }
   auth: {
-    getToken: () => Promise<string | null>
-    clearToken: () => Promise<void>
+    getUser: () => Promise<AuthUser | null>
+    signOut: () => Promise<void>
     openSignIn: () => Promise<void>
     getSignInUrl: () => Promise<string>
-    onTokenReceived: (cb: (token: string) => void) => () => void
+    onChanged: (cb: (user: AuthUser) => void) => () => void
+    onError: (cb: (message: string) => void) => () => void
   }
   updater: {
     checkForUpdates: () => Promise<void>

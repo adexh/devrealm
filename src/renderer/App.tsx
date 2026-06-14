@@ -1,10 +1,11 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Fuse from 'fuse.js'
-import { Moon, Settings, Sun, Trash2, UserRound } from 'lucide-react'
+import { Moon, Settings, Sun, Trash2 } from 'lucide-react'
 import type { CodeEditorConfig, CodeEditorExecutablePath, CodeEditorSettings, Workspace } from '../shared/types'
 import { ThemeContext, CSS_VARS } from './theme'
 import { FUZZY_SEARCH_THRESHOLD } from './constants'
 import { Tabs, Modal, Box, Mono, FolderIcon, GitIcon, Chip, Heading, SearchBox, Btn, Label, Switch, type TabItem } from './components/ui'
+import { AuthButton, useAuthBootstrap } from './features/auth'
 import { DashboardEmpty, WorkspacesManager } from './features/dashboard'
 import { TitleBar } from './components/TitleBar'
 import { Spinner } from './components/Spinner'
@@ -66,6 +67,7 @@ function MainApp() {
   const isManualCheckRef = useRef(false)
 
   useNavigation()
+  useAuthBootstrap()
 
   const syncSelectedWorkspaceGithub = useCallback(async () => {
     if (!selectedWorkspaceId) return
@@ -129,7 +131,7 @@ function MainApp() {
       <div className={`w-screen h-screen overflow-hidden flex flex-col bg-t-bg text-t-ink text-[14px] font-system${dark ? ' dark' : ''}`}>
         <TitleBar rightSlot={(
           <>
-            <LoginButton />
+            <AuthButton />
             <SettingsMenu
               onEditorSettings={() => setEditorSettingsOpen(true)}
               onCheckForUpdates={() => {
@@ -262,63 +264,6 @@ function ThemeToggle({ dark, onToggle }: { dark: boolean; onToggle: () => void }
     >
       <Icon size={16} strokeWidth={2} aria-hidden="true" />
     </button>
-  )
-}
-
-function LoginButton() {
-  const [modalOpen, setModalOpen] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const [signInUrl, setSignInUrl] = useState('')
-
-  function handleSignIn() {
-    void window.electronAPI.auth.openSignIn()
-    void window.electronAPI.auth.getSignInUrl().then(setSignInUrl)
-    setModalOpen(true)
-  }
-
-  function handleCopy() {
-    void navigator.clipboard.writeText(signInUrl)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
-  return (
-    <>
-      <button
-        type="button"
-        onClick={handleSignIn}
-        aria-label="Sign in"
-        title="Sign in"
-        className="h-8.5 w-8.5 inline-flex items-center justify-center rounded bg-transparent text-t-ink-soft hover:text-t-ink hover:bg-t-panel-alt cursor-pointer"
-      >
-        <UserRound size={16} strokeWidth={2} aria-hidden="true" />
-      </button>
-      {modalOpen && (
-        <Modal title="Sign in to DevRealm" onClose={() => setModalOpen(false)} width={480}>
-          <div className="px-6 pb-6 flex flex-col gap-4">
-            <p className="text-[14px] text-t-ink">Sign in from your browser to continue</p>
-            <p className="text-[13px] text-t-ink-soft leading-relaxed">
-              {"If your browser hasn't opened DevRealm for you to sign in, "}
-              <a
-                href={signInUrl}
-                onClick={e => { e.preventDefault(); void window.electronAPI.auth.openSignIn() }}
-                className="text-t-accent underline hover:opacity-80 cursor-pointer"
-              >
-                open it manually
-              </a>
-              {' or '}
-              <button
-                type="button"
-                onClick={handleCopy}
-                className="text-t-accent underline hover:opacity-80 cursor-pointer bg-transparent border-0 p-0 text-[13px]"
-              >
-                {copied ? 'Copied!' : 'copy the URL'}
-              </button>
-            </p>
-          </div>
-        </Modal>
-      )}
-    </>
   )
 }
 

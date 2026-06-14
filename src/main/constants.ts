@@ -1,7 +1,16 @@
 // Centralized constants for the main process.
 
-// Landing page opened for auth / external navigation.
-export const LANDING_URL = process.env.LANDING_URL ?? "http://localhost:3000/";
+// Landing page opened for auth / external navigation. Trailing slashes are
+// stripped so paths can be appended without producing double slashes.
+export const LANDING_URL = (process.env.LANDING_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+
+// Web route the browser lands on after sign-in; it mints a token and redirects
+// to the devrealm:// deep link.
+export const AUTH_REDIRECT_PATH = "/api/auth/electron";
+
+// Backend endpoint the desktop app calls with the received token to verify it
+// and fetch the signed-in user's profile. The secret key stays on the server.
+export const AUTH_VERIFY_PATH = "/api/auth/electron/verify";
 
 // Deep-link protocol (devrealm://auth?token=...).
 export const DEEP_LINK_PROTOCOL = "devrealm";

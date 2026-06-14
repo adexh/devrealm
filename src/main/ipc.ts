@@ -7,6 +7,7 @@ import { randomUUID } from "crypto";
 import simpleGit from "simple-git";
 import * as store from "./store";
 import {
+  AUTH_REDIRECT_PATH,
   CLAUDE_DIR,
   CLAUDE_SETTINGS_FILE,
   CLAUDE_SETTINGS_LOCAL_FILE,
@@ -1510,15 +1511,18 @@ export function registerIpcHandlers() {
     return openInCodeEditor(filePath, "vscode");
   });
 
-  ipcMain.handle("auth:get-token", () => store.getAuthToken())
+  const signInUrl = () =>
+    `${LANDING_URL}/sign-in?redirect_url=${encodeURIComponent(AUTH_REDIRECT_PATH)}`
 
-  ipcMain.handle("auth:clear-token", () => store.clearAuthToken())
+  ipcMain.handle("auth:get-user", () => store.getAuthUser())
+
+  ipcMain.handle("auth:sign-out", () => store.clearAuth())
 
   ipcMain.handle("auth:open-sign-in", () => {
-    shell.openExternal(`${LANDING_URL}/sign-in?redirect_url=/api/auth/electron`)
+    shell.openExternal(signInUrl())
   })
 
-  ipcMain.handle("auth:get-sign-in-url", () => `${LANDING_URL}/sign-in?redirect_url=/api/auth/electron`)
+  ipcMain.handle("auth:get-sign-in-url", () => signInUrl())
 
   ipcMain.handle("updater:check-for-updates", () => {
     if (!app.isPackaged) return
