@@ -49,21 +49,17 @@ export function SingleWorkspace() {
 
   useEffect(() => {
     let cancelled = false
-    const coverageItems = [
-      ...(workspace.rootPath ? [{ id: workspace.id, path: workspace.rootPath }] : []),
-      ...repos.filter(r => r.path).map(r => ({ id: r.id, path: r.path })),
-    ]
+    const coverageItems = repos.filter(r => r.path).map(r => ({ id: r.id, path: r.path }))
     if (!coverageItems.length) return
     checkRepoAiCoverage(coverageItems).then(nextCoverageMap => {
       if (!cancelled) setCoverageMap(nextCoverageMap)
     })
     return () => { cancelled = true }
-  }, [workspace.id, workspace.rootPath, repos])
+  }, [repos])
 
   const totalSize = repos.reduce((a, r) => a + r.size, 0)
   const stale = repos.filter(r => Date.now() - r.lastOpenedAt > STALE_REPO_MS)
-  const workspaceHasAi = coverageMap[workspace.id] ?? false
-  const isRepoAiConfigured = (repo: Repo) => coverageMap[repo.id] === true || workspaceHasAi
+  const isRepoAiConfigured = (repo: Repo) => coverageMap[repo.id] === true
   const configured = repos.filter(isRepoAiConfigured)
   const sorted = [...repos].sort((a, b) => {
     let cmp = 0

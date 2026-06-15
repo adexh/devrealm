@@ -199,6 +199,24 @@ function normalizeGitignorePattern(value: string): string {
     .replace(/\/+$/, "");
 }
 
+async function readFolderGithubConfig(
+  folderPath: string,
+): Promise<WorkspaceGithubConfig | undefined> {
+  try {
+    const git = simpleGit(folderPath);
+    const remotes = await git.getRemotes(true);
+    const origin =
+      remotes.find((remote) => remote.name === "origin") ?? remotes[0];
+    const repoUrl = origin?.refs.fetch ?? origin?.refs.push;
+    if (!repoUrl) return undefined;
+
+    const branch = (await git.branch()).current || undefined;
+    return normalizeWorkspaceGithubConfig({ repoUrl, branch });
+  } catch {
+    return undefined;
+  }
+}
+
 function getRepoIgnorePattern(workspace: Workspace, repoPath: string): string | null {
   const github = normalizeWorkspaceGithubConfig(workspace.github);
   if (!github || !workspace.rootPath || !repoPath) return null;
@@ -552,7 +570,16 @@ export function registerIpcHandlers() {
       }: { dirPath: string; github?: Partial<WorkspaceGithubConfig> },
     ) => {
       const wsName = path.basename(dirPath);
-      const normalizedGithub = normalizeWorkspaceGithubConfig(github);
+      const isGitFolder = fs.existsSync(path.join(dirPath, ".git"));
+
+      // If the imported folder is itself a git repo, treat it as the
+      // workspace's GitHub repo (same as the "add GitHub repo" option when
+      // creating a workspace). Any explicitly-passed github config wins.
+      let normalizedGithub = normalizeWorkspaceGithubConfig(github);
+      if (!normalizedGithub && isGitFolder) {
+        normalizedGithub = await readFolderGithubConfig(dirPath);
+      }
+
       const workspace: Workspace = {
         id: randomUUID(),
         name: wsName,
@@ -561,34 +588,34 @@ export function registerIpcHandlers() {
         createdAt: Date.now(),
       };
 
-      // Scan one level deep for git repos
+      // When the folder isn't a repo itself, scan one level deep for git
+      // repos and add them as workspace repos.
       const addedRepos: Repo[] = [];
-      try {
-        const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-        for (const entry of entries) {
-          if (!entry.isDirectory()) continue;
-          const repoPath = path.join(dirPath, entry.name);
-          const gitDir = path.join(repoPath, ".git");
-          if (fs.existsSync(gitDir)) {
-            const size = getDirSize(repoPath);
+      if (!isGitFolder) {
+        try {
+          const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+          for (const entry of entries) {
+            if (!entry.isDirectory()) continue;
+            const repoPath = path.join(dirPath, entry.name);
+            if (!fs.existsSync(path.join(repoPath, ".git"))) continue;
             const repo: Repo = {
               id: randomUUID(),
               workspaceId: workspace.id,
               name: entry.name,
               path: repoPath,
               lastOpenedAt: Date.now(),
-              size,
+              size: getDirSize(repoPath),
             };
             repo.cloneUrl = (await getRepoCloneUrl(repo)) ?? undefined;
             addedRepos.push(repo);
           }
+        } catch {
+          // permission error or invalid path — create empty workspace
         }
-      } catch {
-        // permission error or invalid path — create empty workspace
       }
 
       store.saveWorkspace(workspace);
-      addedRepos.forEach(repo => store.saveRepo(repo));
+      addedRepos.forEach((repo) => store.saveRepo(repo));
       ensureWorkspaceReposIgnored(workspace, addedRepos);
       return { workspace, repos: addedRepos };
     },
