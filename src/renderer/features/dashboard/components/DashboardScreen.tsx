@@ -428,15 +428,6 @@ export function WorkspacesManager() {
     });
     return map;
   }, [repos]);
-  const workspaceByRepoId = useMemo(() => {
-    const workspaceById = new Map(workspaces.map(workspace => [workspace.id, workspace]));
-    const map = new Map<string, Workspace>();
-    repos.forEach(repo => {
-      const workspace = workspaceById.get(repo.workspaceId);
-      if (workspace) map.set(repo.id, workspace);
-    });
-    return map;
-  }, [repos, workspaces]);
 
   async function handleExport(ws: Workspace) {
     setMenuWorkspaceId(null);
@@ -584,17 +575,16 @@ export function WorkspacesManager() {
             hint="not opened in 30+ days"
           />
           {(() => {
-            const coveredCount = repos.filter((r) => {
-              if (coverageMap[r.id]) return true;
-              const ws = workspaceByRepoId.get(r.id);
-              return ws ? (coverageMap[ws.id] ?? false) : false;
+            const coveredCount = workspaces.filter((ws) => {
+              const { covered, wsHasClaude } = wsAICoverage(ws);
+              return wsHasClaude || covered > 0;
             }).length;
             return (
               <SummaryStat
                 label="AI coverage"
-                value={`${Math.round((coveredCount / Math.max(repos.length, 1)) * 100)}%`}
-                hint={`${coveredCount} / ${repos.length} repos covered`}
-                bar={coveredCount / Math.max(repos.length, 1)}
+                value={`${Math.round((coveredCount / Math.max(workspaces.length, 1)) * 100)}%`}
+                hint={`${coveredCount} / ${workspaces.length} workspaces covered`}
+                bar={coveredCount / Math.max(workspaces.length, 1)}
               />
             );
           })()}
@@ -689,7 +679,7 @@ export function WorkspacesManager() {
                   <FolderIcon />
                   <Heading size={14}>{ws.name}</Heading>
                   <div className="flex-1" />
-                  {ws.github && <Chip>Git {ws.github.branch}</Chip>}
+                  {ws.github && <Chip>Git</Chip>}
                   {staleCount > 0 && <Chip>{staleCount} stale</Chip>}
                   <Mono
                     size={12}
