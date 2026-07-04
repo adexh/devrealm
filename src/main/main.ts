@@ -1,10 +1,10 @@
 import { app, BrowserWindow, Menu } from 'electron'
-import { autoUpdater } from 'electron-updater'
 import path from 'path'
 import { registerIpcHandlers } from './ipc'
 import { readConfig, saveAuthToken, saveAuthUser } from './store'
 import { fetchAuthUser } from './auth'
 import { syncAllWorkspaceGithub } from './workspaceGithub'
+import { checkForUpdate } from './updater'
 import {
   AUTH_DEEP_LINK_HOST,
   DEEP_LINK_PROTOCOL,
@@ -52,24 +52,16 @@ async function handleDeepLink(url: string): Promise<void> {
   }
 }
 
-export function setupAutoUpdater(win: BrowserWindow): void {
+export async function setupAutoUpdater(win: BrowserWindow): Promise<void> {
   if (!app.isPackaged) return
 
-  autoUpdater.autoDownload = false
-
-  autoUpdater.on('update-available', (info) => {
-    win.webContents.send('updater:update-available', { version: info.version })
-  })
-
-  autoUpdater.on('update-not-available', () => {
-    win.webContents.send('updater:update-not-available')
-  })
-
-  autoUpdater.on('error', (err: Error) => {
-    win.webContents.send('updater:error', err.message)
-  })
-
-  void autoUpdater.checkForUpdates()
+  // Startup check: only notify the renderer when an update is actually
+  // available. "up-to-date"/errors are silent here — the manual "Check for
+  // updates" action surfaces those via its own return value.
+  const result = await checkForUpdate()
+  if (result.status === 'available') {
+    win.webContents.send('updater:update-available', { latestVersion: result.latestVersion })
+  }
 }
 
 // macOS: deep link arrives via open-url while app is running
@@ -147,7 +139,7 @@ app.whenReady().then(() => {
   app.setAsDefaultProtocolClient(DEEP_LINK_PROTOCOL)
   registerIpcHandlers()
   const win = createWindow()
-  setupAutoUpdater(win)
+  void setupAutoUpdater(win)
   startWorkspaceGithubPolling()
 
   app.on('activate', () => {

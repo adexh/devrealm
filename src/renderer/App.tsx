@@ -96,24 +96,15 @@ function MainApp() {
   }, [syncSelectedWorkspaceGithub])
 
   useEffect(() => {
-    const offAvailable = window.electronAPI.updater.onUpdateAvailable(({ version }) => {
-      const manual = isManualCheckRef.current
+    // Startup auto-check: the main process only pushes when an update exists.
+    // A dismissed commit stays hidden until the remote moves on again.
+    const offAvailable = window.electronAPI.updater.onUpdateAvailable(({ latestVersion }) => {
       isManualCheckRef.current = false
-      if (!manual) {
-        const dismissed = localStorage.getItem('dismissed_update_version')
-        if (dismissed === version) return
-      }
-      setUpdateState({ stage: 'available', version })
+      const dismissed = localStorage.getItem('dismissed_update_version')
+      if (dismissed === latestVersion) return
+      setUpdateState({ stage: 'available', latestVersion })
     })
-    const offNotAvailable = window.electronAPI.updater.onUpdateNotAvailable(() => {
-      isManualCheckRef.current = false
-      setUpdateState({ stage: 'up-to-date' })
-    })
-    const offError = window.electronAPI.updater.onError((message) => {
-      isManualCheckRef.current = false
-      setUpdateState({ stage: 'error', message })
-    })
-    return () => { offAvailable(); offNotAvailable(); offError() }
+    return () => { offAvailable() }
   }, [])
 
   const selectedWorkspace = workspaces.find(w => w.id === selectedWorkspaceId) ?? null
@@ -137,7 +128,15 @@ function MainApp() {
               onCheckForUpdates={() => {
                 isManualCheckRef.current = true
                 setUpdateState({ stage: 'checking' })
-                void window.electronAPI.updater.checkForUpdates()
+                void window.electronAPI.updater.checkForUpdates().then((result) => {
+                  if (result.status === 'available') {
+                    setUpdateState({ stage: 'available', latestVersion: result.latestVersion })
+                  } else if (result.status === 'up-to-date') {
+                    setUpdateState({ stage: 'up-to-date' })
+                  } else {
+                    setUpdateState({ stage: 'error', message: result.message })
+                  }
+                })
               }}
             />
             <ThemeToggle dark={dark} onToggle={() => setDark(!dark)} />
@@ -193,7 +192,7 @@ function MainApp() {
             state={updateState}
             onClose={() => {
               if (!isManualCheckRef.current && updateState.stage === 'available') {
-                localStorage.setItem('dismissed_update_version', updateState.version)
+                localStorage.setItem('dismissed_update_version', updateState.latestVersion)
               }
               setUpdateState(null)
             }}

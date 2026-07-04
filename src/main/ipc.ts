@@ -1,5 +1,4 @@
 import { ipcMain, shell, dialog, BrowserWindow, app } from "electron";
-import { autoUpdater } from "electron-updater";
 import path from "path";
 import fs from "fs";
 import { spawn } from "child_process";
@@ -19,6 +18,7 @@ import {
   marketplaceManifestUrl,
 } from "./constants";
 import { openInCodeEditor } from "./editorLauncher";
+import { checkForUpdate } from "./updater";
 import {
   createWorkspaceExportPayload,
   getRepoCloneUrl,
@@ -53,6 +53,7 @@ import type {
   CodeEditorSettings,
   OpenInEditorRequest,
   WorkspaceFileTreeNode,
+  UpdateCheckResult,
 } from "../shared/types";
 
 function getDirSize(dirPath: string): number {
@@ -1595,9 +1596,9 @@ export function registerIpcHandlers() {
 
   ipcMain.handle("auth:get-sign-in-url", () => signInUrl())
 
-  ipcMain.handle("updater:check-for-updates", () => {
-    if (!app.isPackaged) return
-    autoUpdater.checkForUpdates()
+  ipcMain.handle("updater:check-for-updates", (): Promise<UpdateCheckResult> => {
+    if (!app.isPackaged) return Promise.resolve({ status: "up-to-date" });
+    return checkForUpdate();
   });
 
   ipcMain.handle("updater:open-release-page", () => {

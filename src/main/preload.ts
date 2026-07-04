@@ -64,19 +64,10 @@ const api = {
   updater: {
     checkForUpdates: () => ipcRenderer.invoke('updater:check-for-updates'),
     openReleasePage: () => ipcRenderer.invoke('updater:open-release-page'),
-    onUpdateAvailable: (cb: (info: { version: string }) => void) => {
-      const handler = (_: unknown, info: { version: string }) => cb(info)
+    onUpdateAvailable: (cb: (info: { latestVersion: string }) => void) => {
+      const handler = (_: unknown, info: { latestVersion: string }) => cb(info)
       ipcRenderer.on('updater:update-available', handler)
       return () => ipcRenderer.removeListener('updater:update-available', handler)
-    },
-    onUpdateNotAvailable: (cb: () => void) => {
-      ipcRenderer.on('updater:update-not-available', cb)
-      return () => ipcRenderer.removeListener('updater:update-not-available', cb)
-    },
-    onError: (cb: (message: string) => void) => {
-      const handler = (_: unknown, message: string) => cb(message)
-      ipcRenderer.on('updater:error', handler)
-      return () => ipcRenderer.removeListener('updater:error', handler)
     },
   },
   auth: {

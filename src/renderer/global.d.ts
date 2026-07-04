@@ -18,6 +18,7 @@ import type {
   WorkspaceGithubSyncResult,
   WorkspaceFileTreeNode,
   AuthUser,
+  UpdateCheckResult,
 } from '../shared/types'
 
 interface ElectronAPI {
@@ -88,11 +89,9 @@ interface ElectronAPI {
     onError: (cb: (message: string) => void) => () => void
   }
   updater: {
-    checkForUpdates: () => Promise<void>
+    checkForUpdates: () => Promise<UpdateCheckResult>
     openReleasePage: () => Promise<void>
-    onUpdateAvailable: (cb: (info: { version: string }) => void) => () => void
-    onUpdateNotAvailable: (cb: () => void) => () => void
-    onError: (cb: (message: string) => void) => () => void
+    onUpdateAvailable: (cb: (info: { latestVersion: string }) => void) => () => void
   }
   claude: {
     pluginsAndSkills: (workspacePath?: string) => Promise<{ id: string; name: string; version: string; description: string; enabled: boolean; skills: { name: string; description: string }[] }[]>
