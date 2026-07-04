@@ -32,6 +32,9 @@ interface ElectronAPI {
     snapshot: () => Promise<AppData>
     list: () => Promise<Workspace[]>
     listFiles: (rootPath: string) => Promise<WorkspaceFileTreeNode[]>
+    createFile: (data: { rootPath: string; relativePath: string }) => Promise<void>
+    createFolder: (data: { rootPath: string; relativePath: string }) => Promise<void>
+    deleteEntry: (data: { rootPath: string; relativePath: string }) => Promise<void>
     create: (data: { name: string; description?: string; rootPath?: string; github?: Partial<WorkspaceGithubConfig> }) => Promise<Workspace>
     update: (ws: Workspace) => Promise<Workspace>
     delete: (id: string) => Promise<void>

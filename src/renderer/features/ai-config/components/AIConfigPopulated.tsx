@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronRight, FileText, Folder, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
-import { Tree, type NodeRendererProps } from 'react-arborist'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronDown, ChevronRight, ChevronsDownUp, FilePlus, FileText, Folder, FolderPlus, RefreshCw, Trash2 } from 'lucide-react'
+import { Tree, type NodeRendererProps, type TreeApi } from 'react-arborist'
 import type { ClaudeSettingsScope, ClaudeSettingsSnapshot, Workspace, Repo, ClaudeMdSnapshot, WorkspaceGithubChangeSummary, WorkspaceGithubDiff, WorkspaceFileTreeNode } from '../../../../shared/types'
 import { useWorkspaceStore } from '../../../stores/workspaceStore'
 import { useNavigationStore } from '../../../stores/navigationStore'
@@ -10,6 +10,7 @@ import { SettingCard } from './SettingCard'
 import { SettingEditor } from './SettingEditor'
 import { ClaudeMdSection } from './ClaudeMdSection'
 import { PluginsSkillsSection, type Plugin, type McpServer } from './PluginsSkillsSection'
+import { createWorkspaceFile, createWorkspaceFolder, deleteWorkspaceEntry, listWorkspaceFiles } from '../ipc/workspaceFiles'
 
 type DraftState = {
   shared: Record<string, unknown>
@@ -26,6 +27,7 @@ type ClaudeBridge = Window['electronAPI']['claude']
 
 type FileTreeNodeProps = NodeRendererProps<WorkspaceFileTreeNode> & {
   onOpenFile: (file: WorkspaceFileTreeNode) => void
+  onRequestDelete: (file: WorkspaceFileTreeNode) => void
 }
 
 function cloneObject<T>(value: T): T {
@@ -108,12 +110,13 @@ function getClaudeBridge(): ClaudeBridge {
   return bridge
 }
 
-function WorkspaceFileTreeRow({ node, style, dragHandle, onOpenFile }: FileTreeNodeProps) {
+function WorkspaceFileTreeRow({ node, style, dragHandle, onOpenFile, onRequestDelete }: FileTreeNodeProps) {
   const data = node.data
   const isDirectory = data.type === 'directory'
   const isOpen = node.isOpen
   const Icon = isDirectory ? Folder : FileText
   const Chevron = isOpen ? ChevronDown : ChevronRight
+  const [menuOpen, setMenuOpen] = useState(false)
 
   function handleClick() {
     if (isDirectory) {
@@ -123,12 +126,22 @@ function WorkspaceFileTreeRow({ node, style, dragHandle, onOpenFile }: FileTreeN
     onOpenFile(data)
   }
 
+  function handleContextMenu(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    node.select()
+    setMenuOpen(true)
+  }
+
   return (
     <div
       ref={dragHandle}
       style={style}
       onClick={handleClick}
-      className="flex items-center gap-1.5 px-2 text-[12px] text-t-ink hover:bg-t-panel-alt cursor-pointer min-w-0"
+      onContextMenu={handleContextMenu}
+      className={node.isSelected
+        ? 'relative flex items-center gap-1.5 px-2 text-[12px] text-t-ink bg-t-panel-alt cursor-pointer min-w-0'
+        : 'relative flex items-center gap-1.5 px-2 text-[12px] text-t-ink hover:bg-t-panel-alt cursor-pointer min-w-0'}
       title={data.relativePath}
     >
       <span className="w-3.5 h-3.5 inline-flex items-center justify-center shrink-0 text-t-ink-softer">
@@ -136,6 +149,28 @@ function WorkspaceFileTreeRow({ node, style, dragHandle, onOpenFile }: FileTreeN
       </span>
       <Icon size={13} strokeWidth={1.8} aria-hidden="true" className="shrink-0 text-t-ink-soft" />
       <span className="truncate">{data.name}</span>
+      {menuOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={e => { e.stopPropagation(); setMenuOpen(false) }}
+            onContextMenu={e => { e.preventDefault(); setMenuOpen(false) }}
+          />
+          <div
+            className="absolute right-2 top-6 z-50 bg-t-bg border border-t-line rounded-[3px] p-1 min-w-32"
+            style={{ boxShadow: '0 4px 16px rgba(0,0,0,0.15)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div
+              onClick={() => { setMenuOpen(false); onRequestDelete(data) }}
+              className="flex items-center gap-2 px-2.5 py-1.5 text-[12px] text-[#e05252] cursor-pointer rounded-[3px] hover:bg-t-panel-alt"
+            >
+              <Trash2 size={13} aria-hidden="true" />
+              Delete
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -177,7 +212,14 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
   const [fileTree, setFileTree] = useState<WorkspaceFileTreeNode[]>([])
   const [fileTreeLoading, setFileTreeLoading] = useState(false)
   const [fileTreeError, setFileTreeError] = useState<string | null>(null)
-  const [fileSidebarCollapsed, setFileSidebarCollapsed] = useState(true)
+  const treeRef = useRef<TreeApi<WorkspaceFileTreeNode> | null>(null)
+  const [selectedNode, setSelectedNode] = useState<WorkspaceFileTreeNode | null>(null)
+  const [creating, setCreating] = useState<'file' | 'folder' | null>(null)
+  const [newEntryName, setNewEntryName] = useState('')
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<WorkspaceFileTreeNode | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const { openMarkdownEditor } = useNavigationStore()
 
   const activePath = selectedRepo?.path ?? workspace.rootPath
@@ -326,35 +368,93 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
     return () => { cancelled = true }
   }, [activePath])
 
-  useEffect(() => {
-    let cancelled = false
-
-    async function loadWorkspaceFiles() {
-      if (!workspace.rootPath) {
-        setFileTree([])
-        setFileTreeError(null)
-        setFileTreeLoading(false)
-        return
-      }
-
-      setFileTreeLoading(true)
+  const refreshFileTree = useCallback(async () => {
+    if (!workspace.rootPath) {
+      setFileTree([])
       setFileTreeError(null)
-      try {
-        const tree = await window.electronAPI.workspaces.listFiles(workspace.rootPath)
-        if (!cancelled) setFileTree(tree)
-      } catch (error) {
-        if (!cancelled) {
-          setFileTree([])
-          setFileTreeError(error instanceof Error ? error.message : 'Unable to list workspace files.')
-        }
-      } finally {
-        if (!cancelled) setFileTreeLoading(false)
-      }
+      setFileTreeLoading(false)
+      return
     }
 
-    void loadWorkspaceFiles()
-    return () => { cancelled = true }
+    setFileTreeLoading(true)
+    setFileTreeError(null)
+    try {
+      const tree = await listWorkspaceFiles(workspace.rootPath)
+      setFileTree(tree)
+    } catch (error) {
+      setFileTree([])
+      setFileTreeError(error instanceof Error ? error.message : 'Unable to list workspace files.')
+    } finally {
+      setFileTreeLoading(false)
+    }
   }, [workspace.rootPath])
+
+  useEffect(() => {
+    void refreshFileTree()
+  }, [refreshFileTree])
+
+  function startCreate(type: 'file' | 'folder') {
+    setCreating(type)
+    setNewEntryName('')
+    setCreateError(null)
+  }
+
+  function cancelCreate() {
+    setCreating(null)
+    setNewEntryName('')
+    setCreateError(null)
+  }
+
+  // Directory the new file/folder will be created inside, mirroring VSCode:
+  // a selected folder is the target; a selected file targets its parent folder;
+  // nothing selected targets the workspace root.
+  function creationParentDir(): string {
+    if (!selectedNode) return ''
+    if (selectedNode.type === 'directory') return selectedNode.relativePath
+    const lastSlash = selectedNode.relativePath.lastIndexOf('/')
+    return lastSlash === -1 ? '' : selectedNode.relativePath.slice(0, lastSlash)
+  }
+
+  async function submitCreate() {
+    const name = newEntryName.trim()
+    if (!creating || !name || !workspace.rootPath) return
+    const parentDir = creationParentDir()
+    const relativePath = parentDir ? `${parentDir}/${name}` : name
+    setCreateError(null)
+    try {
+      if (creating === 'folder') {
+        await createWorkspaceFolder(workspace.rootPath, relativePath)
+      } else {
+        await createWorkspaceFile(workspace.rootPath, relativePath)
+      }
+      cancelCreate()
+      await refreshFileTree()
+      if (parentDir) treeRef.current?.open(parentDir)
+    } catch (error) {
+      setCreateError(error instanceof Error ? error.message : 'Unable to create entry.')
+    }
+  }
+
+  function requestDelete(node: WorkspaceFileTreeNode) {
+    setDeleteError(null)
+    setDeleteTarget(node)
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget || !workspace.rootPath) return
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      await deleteWorkspaceEntry(workspace.rootPath, deleteTarget.relativePath)
+      if (selectedNode?.relativePath === deleteTarget.relativePath) setSelectedNode(null)
+      setDeleteTarget(null)
+      await refreshFileTree()
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'Unable to delete entry.')
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   const currentFile = settings?.[scope] ?? null
   const currentDraft = drafts[scope]
@@ -512,7 +612,6 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <div className="px-6 py-3.5 border-b border-t-line flex items-center gap-3 flex-none">
-        <Heading size={15}>AI Configuration</Heading>
         {workspace.github && githubSummary?.hasChanges && (
           <>
             <Btn onClick={() => { setPushError(null); setShowPushModal(true) }}>Push</Btn>
@@ -629,29 +728,72 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
       </div>
 
       <div className="flex-1 min-h-0 flex">
-        <aside className={`border-r border-t-line bg-t-bg flex-none transition-[width] duration-150 ${fileSidebarCollapsed ? 'w-11' : 'w-72'}`}>
+        <aside className="border-r border-t-line bg-t-bg flex-none w-72">
           <div className="h-full flex flex-col min-h-0">
-            <div className="h-10 border-b border-t-line flex items-center gap-2 px-2.5">
-              <button
-                type="button"
-                onClick={() => setFileSidebarCollapsed(v => !v)}
-                className="h-7 w-7 inline-flex items-center justify-center rounded text-t-ink-soft hover:text-t-ink hover:bg-t-panel-alt cursor-pointer"
-                title={fileSidebarCollapsed ? 'Show files' : 'Hide files'}
-              >
-                {fileSidebarCollapsed
-                  ? <PanelLeftOpen size={15} aria-hidden="true" />
-                  : <PanelLeftClose size={15} aria-hidden="true" />}
-              </button>
-              {!fileSidebarCollapsed && (
-                <>
-                  <Label>Files</Label>
-                  <div className="flex-1" />
-                  <Mono size={10} soft>{fileTree.length}</Mono>
-                </>
-              )}
+            <div className="border-b border-t-line px-5 pt-5 pb-2.5">
+              <div className="flex items-center gap-2">
+                <Heading size={15}>AI Knowledge base</Heading>
+                <div className="flex-1" />
+                <Mono size={10} soft>{fileTree.length}</Mono>
+              </div>
+              <div className="mt-2.5 flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => startCreate('file')}
+                  className="h-7 w-7 inline-flex items-center justify-center rounded text-t-ink-soft hover:text-t-ink hover:bg-t-panel-alt cursor-pointer"
+                  title="New file"
+                >
+                  <FilePlus size={15} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => startCreate('folder')}
+                  className="h-7 w-7 inline-flex items-center justify-center rounded text-t-ink-soft hover:text-t-ink hover:bg-t-panel-alt cursor-pointer"
+                  title="New folder"
+                >
+                  <FolderPlus size={15} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void refreshFileTree()}
+                  className="h-7 w-7 inline-flex items-center justify-center rounded text-t-ink-soft hover:text-t-ink hover:bg-t-panel-alt cursor-pointer"
+                  title="Refresh"
+                >
+                  <RefreshCw size={14} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => treeRef.current?.closeAll()}
+                  className="h-7 w-7 inline-flex items-center justify-center rounded text-t-ink-soft hover:text-t-ink hover:bg-t-panel-alt cursor-pointer"
+                  title="Collapse all"
+                >
+                  <ChevronsDownUp size={15} aria-hidden="true" />
+                </button>
+              </div>
             </div>
-            {!fileSidebarCollapsed && (
-              <div className="flex-1 min-h-0 overflow-hidden py-2">
+            {creating && (
+              <div className="px-3 pt-2">
+                <Mono size={10} soft className="block mb-1 truncate">
+                  Creating in {creationParentDir() ? `${creationParentDir()}/` : 'workspace root'}
+                </Mono>
+                <input
+                  autoFocus
+                  value={newEntryName}
+                  onChange={e => setNewEntryName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') void submitCreate()
+                    if (e.key === 'Escape') cancelCreate()
+                  }}
+                  onBlur={cancelCreate}
+                  placeholder={creating === 'folder' ? 'New folder name' : 'New file name'}
+                  className="w-full h-7 px-2 text-[12px] bg-t-panel border border-t-line rounded outline-none focus:border-t-ink-soft"
+                />
+                {createError && (
+                  <div className="mt-1 text-[11px] text-[#e05252]">{createError}</div>
+                )}
+              </div>
+            )}
+            <div className="flex-1 min-h-0 overflow-hidden py-2 pl-3">
                 {fileTreeLoading ? (
                   <Mono size={11} soft className="block px-3 py-1">Loading...</Mono>
                 ) : fileTreeError ? (
@@ -660,23 +802,31 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
                   </div>
                 ) : (
                   <Tree<WorkspaceFileTreeNode>
+                    ref={treeRef}
                     data={fileTree}
-                    width={288}
+                    width={276}
                     height={treeHeight}
                     rowHeight={26}
                     indent={16}
                     overscanCount={8}
                     openByDefault={false}
+                    onSelect={nodes => setSelectedNode(nodes.length ? nodes[nodes.length - 1].data : null)}
                   >
-                    {(props) => <WorkspaceFileTreeRow {...props} onOpenFile={openWorkspaceFile} />}
+                    {(props) => (
+                      <WorkspaceFileTreeRow
+                        {...props}
+                        onOpenFile={openWorkspaceFile}
+                        onRequestDelete={requestDelete}
+                      />
+                    )}
                   </Tree>
                 )}
-              </div>
-            )}
+            </div>
           </div>
         </aside>
 
         <div className="flex-1 overflow-auto p-5 flex flex-col gap-3.5">
+        <Heading size={15}>AI Configurations</Heading>
         {showGithubDiff && githubSummary?.hasChanges && (
           <Box className="p-3.5 bg-t-panel">
             <div className="flex items-center gap-2">
@@ -1039,6 +1189,33 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
         )}
         </div>
       </div>
+
+      {deleteTarget && (
+        <Modal title="Delete" width={420} onClose={() => !deleting && setDeleteTarget(null)}>
+          <div className="flex flex-col gap-3">
+            <div className="text-[13px] text-t-ink-soft leading-relaxed">
+              Are you sure you want to delete {deleteTarget.type === 'directory' ? 'folder' : 'file'}{' '}
+              <Mono size={12}>{deleteTarget.relativePath}</Mono>?
+              {deleteTarget.type === 'directory' && ' Everything inside it will be removed.'} This cannot be undone.
+            </div>
+            {deleteError && (
+              <div className="text-[11px] text-[#e05252] px-2 py-1.5 border border-[#e05252] rounded-[3px]">
+                {deleteError}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Btn onClick={() => !deleting && setDeleteTarget(null)}>Cancel</Btn>
+              <Btn
+                primary
+                onClick={confirmDelete}
+                style={{ opacity: deleting ? 0.45 : 1 }}
+              >
+                {deleting ? 'Deleting...' : 'Delete'}
+              </Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
