@@ -222,6 +222,15 @@ export type ImportedClaudeSettings = {
   local?: Record<string, unknown>
 }
 
+// Result of the update check. DevRealm is distributed by the build-from-source
+// install.sh script (no signed installer, so electron-updater can't be used);
+// updates are detected by comparing the running version against the latest
+// GitHub release tag.
+export type UpdateCheckResult =
+  | { status: "up-to-date" }
+  | { status: "available"; currentVersion: string; latestVersion: string }
+  | { status: "error"; message: string }
+
 export type WorkspaceExportRepository = {
   name: string
   cloneUrl: string

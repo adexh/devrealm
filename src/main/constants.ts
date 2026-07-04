@@ -51,6 +51,9 @@ export const CLAUDE_SETTINGS_LOCAL_FILE = "settings.local.json";
 export const GITHUB_BASE_URL = "https://github.com";
 export const LATEST_RELEASE_URL =
   "https://github.com/adexh/devrealm/releases/latest";
+// GitHub API endpoint the update check queries for the latest release tag.
+export const LATEST_RELEASE_API_URL =
+  "https://api.github.com/repos/adexh/devrealm/releases/latest";
 
 // MCP registry.
 export const MCP_REGISTRY_SERVERS_URL =

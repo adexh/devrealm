@@ -2,7 +2,7 @@ import { Modal, Btn } from './ui'
 
 export type UpdateState =
   | { stage: 'checking' }
-  | { stage: 'available'; version: string }
+  | { stage: 'available'; latestVersion: string }
   | { stage: 'up-to-date' }
   | { stage: 'error'; message: string }
 
@@ -56,13 +56,13 @@ export function UpdateNotificationModal({ state, onClose }: Props) {
     <Modal title="Update available" onClose={onClose} width={420}>
       <div className="flex flex-col gap-4">
         <p className="text-[13px] text-t-ink leading-relaxed">
-          Version <span className="font-medium">{state.version}</span> is available.
-          Download and install it manually from the releases page.
+          DevRealm <span className="font-medium">{state.latestVersion}</span> is available.
+          Re-run the DevRealm installer to update.
         </p>
         <div className="flex justify-end gap-2">
           <Btn onClick={onClose}>Later</Btn>
           <Btn primary onClick={() => { void window.electronAPI.updater.openReleasePage(); onClose() }}>
-            View release
+            View on GitHub
           </Btn>
         </div>
       </div>
