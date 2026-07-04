@@ -120,6 +120,19 @@ function getWorkspaceFileTree(rootPath: string, ignoredPaths: string[] = []): Wo
   return readDir(root);
 }
 
+function resolveWorkspaceChildPath(rootPath: string, relativePath: string): string {
+  if (!rootPath) throw new Error("Workspace path is required.");
+  const trimmed = (relativePath ?? "").trim();
+  if (!trimmed) throw new Error("A name is required.");
+  const root = path.resolve(rootPath);
+  const absolutePath = path.resolve(root, trimmed);
+  const rel = path.relative(root, absolutePath);
+  if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) {
+    throw new Error("Path must stay within the workspace.");
+  }
+  return absolutePath;
+}
+
 function resolveRepoOpenTarget({
   targetPath,
   repoId,
@@ -435,6 +448,37 @@ export function registerIpcHandlers() {
       : [];
     return getWorkspaceFileTree(rootPath, repoPaths);
   });
+  ipcMain.handle(
+    "workspaces:create-file",
+    (_, { rootPath, relativePath }: { rootPath: string; relativePath: string }) => {
+      const absolutePath = resolveWorkspaceChildPath(rootPath, relativePath);
+      if (fs.existsSync(absolutePath)) {
+        throw new Error("A file or folder with that name already exists.");
+      }
+      fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+      fs.writeFileSync(absolutePath, "", "utf8");
+    },
+  );
+  ipcMain.handle(
+    "workspaces:create-folder",
+    (_, { rootPath, relativePath }: { rootPath: string; relativePath: string }) => {
+      const absolutePath = resolveWorkspaceChildPath(rootPath, relativePath);
+      if (fs.existsSync(absolutePath)) {
+        throw new Error("A file or folder with that name already exists.");
+      }
+      fs.mkdirSync(absolutePath, { recursive: true });
+    },
+  );
+  ipcMain.handle(
+    "workspaces:delete-entry",
+    (_, { rootPath, relativePath }: { rootPath: string; relativePath: string }) => {
+      const absolutePath = resolveWorkspaceChildPath(rootPath, relativePath);
+      if (!fs.existsSync(absolutePath)) {
+        throw new Error("That file or folder no longer exists.");
+      }
+      fs.rmSync(absolutePath, { recursive: true, force: true });
+    },
+  );
   ipcMain.handle("workspaces:sync-github", async (_, workspaceId?: string) => {
     if (workspaceId) return syncWorkspaceGithubById(workspaceId);
     return syncAllWorkspaceGithub();
