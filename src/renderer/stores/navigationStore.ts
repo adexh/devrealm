@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { MarkdownFileIdentity } from '../../shared/types'
 
-export type StaticTab = 'Dashboard' | 'AI Configs'
+export type StaticTab = 'Dashboard' | 'AI Configs' | 'Terminals'
 export type MarkdownEditorTab = `Editor:${string}`
 export type Tab = StaticTab | MarkdownEditorTab
 

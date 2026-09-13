@@ -18,6 +18,7 @@ export function useNavigation() {
       if (e.metaKey && e.key === 'Escape') setSelectedWorkspaceId(null)
       if (e.metaKey && e.shiftKey && e.key === 'd') handleTabChange('Dashboard')
       if (e.metaKey && e.shiftKey && e.key === 'a') handleTabChange('AI Configs')
+      if (e.metaKey && e.shiftKey && e.key === 't') handleTabChange('Terminals')
       if (e.key === 'Backspace' && !e.metaKey && !e.altKey && !e.ctrlKey) {
         const tag = (e.target as HTMLElement).tagName
         const isEditable = (e.target as HTMLElement).isContentEditable
