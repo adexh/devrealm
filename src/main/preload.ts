@@ -66,15 +66,6 @@ const api = {
     rename: (data: { id: string; title: string }) => ipcRenderer.invoke('terminals:rename', data),
     attach: (data: { id: string; cols: number; rows: number }) => ipcRenderer.invoke('terminals:attach', data),
     detach: (id: string) => ipcRenderer.invoke('terminals:detach', id),
-    // The port is what carries PTY bytes; everything above is control plane.
-    onPort: (cb: (sessionId: string, port: MessagePort) => void) => {
-      const handler = (event: Electron.IpcRendererEvent, message: { sessionId: string }) => {
-        const port = event.ports[0]
-        if (port) cb(message.sessionId, port)
-      }
-      ipcRenderer.on('terminals:port', handler)
-      return () => ipcRenderer.removeListener('terminals:port', handler)
-    },
     onEvent: (cb: (event: unknown) => void) => {
       const handler = (_: unknown, value: unknown) => cb(value)
       ipcRenderer.on('terminals:event', handler)
@@ -127,6 +118,33 @@ const api = {
     openMarketplaceWindow: () => ipcRenderer.invoke('claude:open-marketplace-window'),
   },
 }
+
+/**
+ * Terminal MessagePorts cannot cross contextBridge: it clones its arguments,
+ * and a cloned port is inert (no start, no postMessage, no close). Electron's
+ * supported path is to forward the port from preload into the main world with
+ * window.postMessage, which transfers the live object. The renderer listens for
+ * TERMINAL_PORT_MESSAGE; see features/terminals/ipc/terminals.ts.
+ *
+ * `window` is declared locally because tsconfig.main.json has no DOM lib, and
+ * the main process itself should not gain one just for this file.
+ *
+ * The message tag is inlined rather than imported. Preload scripts run
+ * sandboxed, where `require` is limited to electron and a few Node builtins, so
+ * a relative import here throws "module not found" and takes the whole preload
+ * with it, leaving the renderer without window.electronAPI at all. Only
+ * type-only imports are safe in this file. Keep this literal in step with
+ * TERMINAL_PORT_MESSAGE in src/shared/terminal.ts.
+ */
+const TERMINAL_PORT_MESSAGE = 'devrealm:terminal-port'
+
+declare const window: {
+  postMessage(message: unknown, targetOrigin: string, transfer?: unknown[]): void
+}
+
+ipcRenderer.on('terminals:port', (event, message: { sessionId: string }) => {
+  window.postMessage({ type: TERMINAL_PORT_MESSAGE, sessionId: message.sessionId }, '*', event.ports)
+})
 
 contextBridge.exposeInMainWorld('electronAPI', {
   ...api,

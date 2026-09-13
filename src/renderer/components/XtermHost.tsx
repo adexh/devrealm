@@ -103,21 +103,26 @@ export function XtermHost({ theme, readOnly = false, scrollback = 5000, fontSize
 
     // Debounced, because fit() forces layout and a window drag fires constantly.
     let resizeTimer: number | undefined
+    let torndown = false
     const observer = new ResizeObserver(() => {
       window.clearTimeout(resizeTimer)
       resizeTimer = window.setTimeout(() => {
+        if (torndown) return
         const size = fit()
         onResizeRef.current?.(size.cols, size.rows)
       }, 50)
     })
     observer.observe(container)
 
+    // Each step is guarded: a throw here happens during React unmount and
+    // would take the whole tree down with it.
     return () => {
+      torndown = true
       window.clearTimeout(resizeTimer)
-      observer.disconnect()
-      cleanup?.()
-      webgl?.dispose()
-      terminal.dispose()
+      try { observer.disconnect() } catch { /* already disconnected */ }
+      try { cleanup?.() } catch { /* consumer cleanup failed */ }
+      try { webgl?.dispose() } catch { /* context already lost */ }
+      try { terminal.dispose() } catch { /* already disposed */ }
     }
     // Re-creating the terminal on prop changes would lose scrollback, so this
     // intentionally mounts once per component instance.

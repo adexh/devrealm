@@ -1,5 +1,4 @@
 import { useCallback, useRef } from 'react'
-import type { Terminal } from '@xterm/xterm'
 import { FlowControl } from '../../../../shared/terminalConstants'
 import { attachSession, detachSession, onSessionPort } from '../ipc/terminals'
 import type { XtermHandle } from '../../../components/XtermHost'
@@ -19,13 +18,32 @@ export function useTerminalAttach(sessionId: string, onError: (message: string) 
   const onReady = useCallback((handle: XtermHandle) => {
     const { terminal, fit } = handle
     const size = fit()
+    const encoder = new TextEncoder()
     let disposed = false
     let unacknowledged = 0
     // Acks during replay would desynchronise the daemon's counter.
     let inReplay = false
 
+    // Registered once, not per port, so a reconnect cannot stack handlers.
+    const inputSubscription = terminal.onData(data => {
+      portRef.current?.postMessage({ t: 'input', b: encoder.encode(data) })
+    })
+
+    function writeWithAck(bytes: Uint8Array) {
+      terminal.write(bytes, () => {
+        if (inReplay) return
+        unacknowledged += bytes.length
+        if (unacknowledged < FlowControl.CharCountAckSize) return
+        portRef.current?.postMessage({ t: 'ack', chars: unacknowledged })
+        unacknowledged = 0
+      })
+    }
+
     const offPort = onSessionPort((incomingId, port) => {
-      if (incomingId !== sessionId || disposed) return
+      if (incomingId !== sessionId || disposed) {
+        port.close()
+        return
+      }
       portRef.current = port
 
       port.onmessage = event => {
@@ -39,40 +57,33 @@ export function useTerminalAttach(sessionId: string, onError: (message: string) 
           terminal.write(message.b, () => { inReplay = false })
           return
         }
-        writeWithAck(terminal, message.b)
+        writeWithAck(message.b)
       }
       port.start()
-
-      terminal.onData(data => {
-        port.postMessage({ t: 'input', b: new TextEncoder().encode(data) })
-      })
     })
-
-    function writeWithAck(term: Terminal, bytes: Uint8Array) {
-      term.write(bytes, () => {
-        if (inReplay) return
-        unacknowledged += bytes.length
-        if (unacknowledged < FlowControl.CharCountAckSize) return
-        portRef.current?.postMessage({ t: 'ack', chars: unacknowledged })
-        unacknowledged = 0
-      })
-    }
 
     attachSession(sessionId, size.cols, size.rows).catch((error: unknown) => {
       onError(error instanceof Error ? error.message : 'Could not attach to the shell')
     })
 
+    // Nothing here may throw: this runs inside a React effect cleanup, and an
+    // exception during unmount tears down the tree.
     return () => {
       disposed = true
-      offPort()
-      portRef.current?.close()
+      try { offPort() } catch { /* listener already gone */ }
+      try { inputSubscription.dispose() } catch { /* terminal already disposed */ }
+      try { portRef.current?.close() } catch { /* port already closed */ }
       portRef.current = null
-      void detachSession(sessionId)
+      void detachSession(sessionId).catch(() => { /* daemon already dropped it */ })
     }
   }, [sessionId, onError])
 
   const onResize = useCallback((cols: number, rows: number) => {
-    portRef.current?.postMessage({ t: 'resize', cols, rows })
+    try {
+      portRef.current?.postMessage({ t: 'resize', cols, rows })
+    } catch {
+      // Port closed between the resize observer firing and this call.
+    }
   }, [])
 
   return { onReady, onResize }

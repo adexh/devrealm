@@ -21,6 +21,7 @@ type RefHandler = {
 }
 
 const CONNECT_TIMEOUT_MS = 5000
+const QUEUED_FRAME_LIMIT = 256
 const CONNECT_RETRY_MS = 25
 
 /**
@@ -34,6 +35,12 @@ export class DaemonClient {
   private nextRequestId = 1
   private readonly pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>()
   private readonly refHandlers = new Map<number, RefHandler>()
+  /**
+   * The daemon writes a session's snapshot as soon as it processes an attach,
+   * which is before the attach control response, so frames can arrive for a ref
+   * whose handler is not registered yet. Hold them until it is.
+   */
+  private readonly pendingFrames = new Map<number, { type: number; payload: Buffer }[]>()
   private readonly eventListeners = new Set<(event: ControlEvent) => void>()
 
   private readonly dataDir = path.join(os.homedir(), DATA_DIR_NAME)
@@ -57,10 +64,32 @@ export class DaemonClient {
 
   registerRef(ref: number, handler: RefHandler): void {
     this.refHandlers.set(ref, handler)
+    const queued = this.pendingFrames.get(ref)
+    if (!queued) return
+    this.pendingFrames.delete(ref)
+    for (const frame of queued) this.dispatchToRef(handler, frame.type, frame.payload)
   }
 
   releaseRef(ref: number): void {
     this.refHandlers.delete(ref)
+    this.pendingFrames.delete(ref)
+  }
+
+  private dispatchToRef(handler: RefHandler, type: number, payload: Buffer): void {
+    if (type === FrameType.Data) return handler.onData(payload)
+    if (type === FrameType.Snapshot) return handler.onSnapshot(payload)
+    if (type === FrameType.Exit) return handler.onExit(payload.readInt32LE(0))
+  }
+
+  private routeRefFrame(ref: number, type: number, payload: Buffer): void {
+    const handler = this.refHandlers.get(ref)
+    if (handler) return this.dispatchToRef(handler, type, payload)
+
+    const queue = this.pendingFrames.get(ref) ?? []
+    // Bounded, so a ref that never registers cannot grow without limit.
+    if (queue.length >= QUEUED_FRAME_LIMIT) queue.shift()
+    queue.push({ type, payload })
+    this.pendingFrames.set(ref, queue)
   }
 
   sendInput(ref: number, data: Buffer): void {
@@ -138,6 +167,7 @@ export class DaemonClient {
     this.pending.clear()
     for (const handler of this.refHandlers.values()) handler.onExit(-1)
     this.refHandlers.clear()
+    this.pendingFrames.clear()
   }
 
   private handshake(): Promise<void> {
@@ -185,13 +215,9 @@ export class DaemonClient {
           break
         }
         case FrameType.Data:
-          this.refHandlers.get(frame.ref)?.onData(frame.payload)
-          break
         case FrameType.Snapshot:
-          this.refHandlers.get(frame.ref)?.onSnapshot(frame.payload)
-          break
         case FrameType.Exit:
-          this.refHandlers.get(frame.ref)?.onExit(frame.payload.readInt32LE(0))
+          this.routeRefFrame(frame.ref, frame.type, frame.payload)
           break
         default:
           break

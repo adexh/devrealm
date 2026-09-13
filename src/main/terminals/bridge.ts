@@ -10,7 +10,7 @@ type PortMessage =
   | { t: 'resize'; cols: number; rows: number }
   | { t: 'ack'; chars: number }
 
-const openPorts = new Map<string, MessagePortMain>()
+const openPorts = new Map<string, { port: MessagePortMain; ref: number }>()
 
 /**
  * Attaches a session and hands the renderer a dedicated MessagePort for it.
@@ -36,7 +36,7 @@ export async function attachSession(
   })
 
   const { port1, port2 } = new MessageChannelMain()
-  openPorts.set(sessionId, port1)
+  openPorts.set(sessionId, { port: port1, ref: result.ref })
 
   daemonClient.registerRef(result.ref, {
     onSnapshot: chunk => port1.postMessage({ t: 'snapshot', b: new Uint8Array(chunk) }),
@@ -62,10 +62,11 @@ export async function attachSession(
 }
 
 export function detachSession(sessionId: string): void {
-  const port = openPorts.get(sessionId)
-  if (!port) return
+  const open = openPorts.get(sessionId)
+  if (!open) return
   openPorts.delete(sessionId)
-  try { port.close() } catch { /* already closed */ }
+  daemonClient.releaseRef(open.ref)
+  try { open.port.close() } catch { /* already closed */ }
 }
 
 export function detachAll(): void {

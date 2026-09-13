@@ -48,6 +48,9 @@ export type ControlEvent =
   | { event: 'sessions-changed'; sessions: TerminalSessionInfo[] }
   | { event: 'exit'; id: string; exitCode: number }
 
+/** Tag for the window.postMessage that carries a session's MessagePort. */
+export const TERMINAL_PORT_MESSAGE = 'devrealm:terminal-port'
+
 export const DAEMON_SOCKET_NAME = 'term.sock'
 export const DAEMON_PIPE_NAME = '\\\\.\\pipe\\devrealm-term'
 export const DAEMON_LOCK_NAME = 'term.daemon.lock'
