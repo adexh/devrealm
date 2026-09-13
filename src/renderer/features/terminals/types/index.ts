@@ -1,3 +1,5 @@
+import type { TerminalSessionInfo } from '../../../../shared/terminal'
+
 export type SessionState =
   | 'booting'
   | 'running'
@@ -14,26 +16,14 @@ export type SessionStat = {
   tone?: StatTone
 }
 
-export type TerminalSession = {
-  id: string
-  workspaceId: string
+/** Daemon session facts, plus the workspace name resolved for display. */
+export type TerminalSession = TerminalSessionInfo & {
   workspaceName: string
-  repoId: string | null
-  repoName: string
-  /** Editable tab label, e.g. "vault: next-dev". */
-  title: string
-  cwd: string
-  shell: string
   state: SessionState
-  /** Overrides the state's default chip text, e.g. "TESTING". */
   statusLabel?: string
-  /** One-line description of what the shell is doing. */
   subtitle?: string
-  /** Port a dev server bound in this session, surfaced as a clickable URL. */
   boundPort?: number
   stats: SessionStat[]
-  createdAt: number
-  lastActiveAt: number
 }
 
 /** Sessions bucketed by the workspace they belong to. Group name = workspace name. */

@@ -1,6 +1,7 @@
 import { app, BrowserWindow, Menu } from 'electron'
 import path from 'path'
 import { registerIpcHandlers } from './ipc'
+import { registerTerminalIpcHandlers } from './terminals/ipc'
 import { readConfig, saveAuthToken, saveAuthUser } from './store'
 import { fetchAuthUser } from './auth'
 import { syncAllWorkspaceGithub } from './workspaceGithub'
@@ -138,6 +139,7 @@ function startWorkspaceGithubPolling(): void {
 app.whenReady().then(() => {
   app.setAsDefaultProtocolClient(DEEP_LINK_PROTOCOL)
   registerIpcHandlers()
+  registerTerminalIpcHandlers(() => mainWindow?.webContents ?? null)
   const win = createWindow()
   void setupAutoUpdater(win)
   startWorkspaceGithubPolling()

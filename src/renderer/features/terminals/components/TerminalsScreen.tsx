@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useWorkspaceStore } from '../../../stores/workspaceStore'
 import { useUiStore } from '../../../stores/uiStore'
 import { useTerminalStore } from '../hooks/useTerminalStore'
@@ -20,10 +20,16 @@ export function TerminalsScreen() {
   const activeSessionId = useTerminalStore(state => state.activeSessionId)
   const railOpen = useTerminalStore(state => state.railOpen)
   const drawerOpen = useTerminalStore(state => state.drawerOpen)
+  const error = useTerminalStore(state => state.error)
+  const init = useTerminalStore(state => state.init)
+  const setError = useTerminalStore(state => state.setError)
   const openSession = useTerminalStore(state => state.openSession)
   const closeSession = useTerminalStore(state => state.closeSession)
   const focusSession = useTerminalStore(state => state.focusSession)
   const toggleDrawer = useTerminalStore(state => state.toggleDrawer)
+
+  // The daemon may already hold sessions from before this window opened.
+  useEffect(() => { void init() }, [init])
 
   const activeSession = sessions.find(session => session.id === activeSessionId) ?? null
 
@@ -34,25 +40,22 @@ export function TerminalsScreen() {
     : []
 
   const launch = useCallback((target: LaunchTarget) => {
-    const workspace = workspaces.find(item => item.id === target.workspaceId)
-    openSession({
+    void openSession({
       workspaceId: target.workspaceId,
-      workspaceName: workspace?.name ?? 'Workspace',
       repoId: target.id,
       repoName: target.name,
       cwd: target.path,
     })
-  }, [workspaces, openSession])
+  }, [openSession])
 
-  /** ⌘T and New Shell: another shell in the current repo, else open the launcher. */
+  /** New Shell: another shell in the current repo, else open the launcher. */
   const newShell = useCallback(() => {
     if (!activeSession) {
       if (!drawerOpen) toggleDrawer()
       return
     }
-    openSession({
+    void openSession({
       workspaceId: activeSession.workspaceId,
-      workspaceName: activeSession.workspaceName,
       repoId: activeSession.repoId,
       repoName: activeSession.repoName,
       cwd: activeSession.cwd,
@@ -60,10 +63,24 @@ export function TerminalsScreen() {
   }, [activeSession, drawerOpen, toggleDrawer, openSession])
 
   useTerminalShortcuts(newShell)
+  void workspaces
 
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-tm-bg">
       <TerminalContextBar onNewShell={newShell} />
+
+      {error && (
+        <div className="px-3 py-1.5 bg-tm-2 text-tm-err text-[12px] leading-4 flex items-center justify-between gap-3 shrink-0">
+          <span className="truncate">{error}</span>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="text-tm-ink-dim hover:text-tm-ink-strong bg-transparent border-none cursor-pointer shrink-0"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       <div className="flex-1 min-h-0 flex w-full overflow-hidden">
         {railOpen && <SessionRail onQuickSwitch={openGlobalSearch} />}
@@ -76,10 +93,12 @@ export function TerminalsScreen() {
                 activeSessionId={activeSessionId}
                 activeSession={activeSession}
                 onFocus={focusSession}
-                onClose={closeSession}
+                onClose={id => void closeSession(id)}
                 onNewTab={newShell}
               />
-              <TerminalSurface session={activeSession} />
+              {/* Keyed by id: switching tabs disposes this xterm and mounts a
+                  fresh one that replays the daemon's snapshot. */}
+              <TerminalSurface key={activeSession.id} session={activeSession} />
               <TerminalShortcutBar boundPort={activeSession.boundPort} />
             </>
           ) : (

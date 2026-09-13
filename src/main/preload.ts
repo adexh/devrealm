@@ -59,6 +59,28 @@ const api = {
   shell: {
     openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url),
   },
+  terminals: {
+    list: () => ipcRenderer.invoke('terminals:list'),
+    open: (request: unknown) => ipcRenderer.invoke('terminals:open', request),
+    close: (id: string) => ipcRenderer.invoke('terminals:close', id),
+    rename: (data: { id: string; title: string }) => ipcRenderer.invoke('terminals:rename', data),
+    attach: (data: { id: string; cols: number; rows: number }) => ipcRenderer.invoke('terminals:attach', data),
+    detach: (id: string) => ipcRenderer.invoke('terminals:detach', id),
+    // The port is what carries PTY bytes; everything above is control plane.
+    onPort: (cb: (sessionId: string, port: MessagePort) => void) => {
+      const handler = (event: Electron.IpcRendererEvent, message: { sessionId: string }) => {
+        const port = event.ports[0]
+        if (port) cb(message.sessionId, port)
+      }
+      ipcRenderer.on('terminals:port', handler)
+      return () => ipcRenderer.removeListener('terminals:port', handler)
+    },
+    onEvent: (cb: (event: unknown) => void) => {
+      const handler = (_: unknown, value: unknown) => cb(value)
+      ipcRenderer.on('terminals:event', handler)
+      return () => ipcRenderer.removeListener('terminals:event', handler)
+    },
+  },
   markdown: {
     readFile: (data: { absolutePath: string } | { workspacePath: string; relativePath: string }) => ipcRenderer.invoke('markdown:read-file', data),
     writeFile: (data: ({ absolutePath: string } | { workspacePath: string; relativePath: string }) & { content: string }) => ipcRenderer.invoke('markdown:write-file', data),

@@ -1,12 +1,12 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { DrawerFilter, SessionGroup, TerminalSession } from '../types'
-import { DEFAULT_SHELL } from '../constants'
-import { makeSessionId } from '../ipc/terminals'
+import type { TerminalSessionInfo } from '../../../../shared/terminal'
+import { useWorkspaceStore } from '../../../stores/workspaceStore'
+import type { DrawerFilter, SessionGroup, SessionStat, TerminalSession } from '../types'
+import * as terminalsIpc from '../ipc/terminals'
 
 type OpenSessionInput = {
   workspaceId: string
-  workspaceName: string
   repoId: string | null
   repoName: string
   cwd: string
@@ -15,17 +15,24 @@ type OpenSessionInput = {
 interface TerminalState {
   sessions: TerminalSession[]
   activeSessionId: string | null
+  error: string | null
+  ready: boolean
+
   railOpen: boolean
   drawerOpen: boolean
   collapsedGroupIds: string[]
   drawerQuery: string
   drawerFilter: DrawerFilter
 
-  openSession: (input: OpenSessionInput) => string
-  closeSession: (id: string) => void
+  init: () => Promise<void>
+  refresh: () => Promise<void>
+  openSession: (input: OpenSessionInput) => Promise<void>
+  closeSession: (id: string) => Promise<void>
   focusSession: (id: string) => void
-  renameSession: (id: string, title: string) => void
-  killWorkspaceSessions: (workspaceId: string) => void
+  renameSession: (id: string, title: string) => Promise<void>
+  killWorkspaceSessions: (workspaceId: string) => Promise<void>
+  setError: (message: string | null) => void
+
   toggleRail: () => void
   toggleDrawer: () => void
   toggleGroup: (workspaceId: string) => void
@@ -35,22 +42,41 @@ interface TerminalState {
   focusAdjacentSession: (offset: 1 | -1) => void
 }
 
-/**
- * Auto-names a tab after its repo, suffixing when the repo already has tabs:
- * "backend", then "backend 2", "backend 3".
- */
-function nextTitle(sessions: TerminalSession[], repoName: string): string {
-  const sameRepo = sessions.filter(session => session.repoName === repoName)
-  if (sameRepo.length === 0) return repoName
-  return `${repoName} ${sameRepo.length + 1}`
+function shortenHome(absolutePath: string): string {
+  const match = absolutePath.match(/^\/Users\/[^/]+\/(.*)$|^\/home\/[^/]+\/(.*)$/)
+  return match ? `~/${match[1] ?? match[2]}` : absolutePath
 }
 
-function shortenHome(absolutePath: string): string {
-  const home = (window.electronAPI.platform === 'win32' ? '' : '~')
-  if (!home) return absolutePath
-  const match = absolutePath.match(/^\/Users\/[^/]+\/(.*)$|^\/home\/[^/]+\/(.*)$/)
-  if (!match) return absolutePath
-  return `~/${match[1] ?? match[2]}`
+/**
+ * Maps a daemon session onto the view model. State is derived only from facts
+ * the daemon reports; richer states such as "working" arrive when the daemon
+ * grows activity detection.
+ */
+function toViewSession(info: TerminalSessionInfo): TerminalSession {
+  const workspace = useWorkspaceStore.getState().workspaces.find(item => item.id === info.workspaceId)
+  const stats: SessionStat[] = [
+    { label: info.shell.split('/').pop() ?? info.shell, tone: 'dim' },
+    { label: `pid ${info.pid}`, tone: 'dim' },
+  ]
+
+  return {
+    ...info,
+    workspaceName: workspace?.name ?? 'Workspace',
+    state: info.exitCode === null ? 'running' : (info.exitCode === 0 ? 'exited' : 'failed'),
+    statusLabel: info.exitCode !== null && info.exitCode !== 0 ? `EXIT ${info.exitCode}` : undefined,
+    subtitle: shortenHome(info.cwd),
+    stats,
+  }
+}
+
+/** Auto-names a tab after its repo, suffixing when the repo already has tabs. */
+function nextTitle(sessions: TerminalSession[], repoName: string): string {
+  const sameRepo = sessions.filter(session => session.repoName === repoName)
+  return sameRepo.length === 0 ? repoName : `${repoName} ${sameRepo.length + 1}`
+}
+
+function message(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback
 }
 
 export const useTerminalStore = create<TerminalState>()(
@@ -58,59 +84,81 @@ export const useTerminalStore = create<TerminalState>()(
     (set, get) => ({
       sessions: [],
       activeSessionId: null,
+      error: null,
+      ready: false,
+
       railOpen: true,
       drawerOpen: true,
       collapsedGroupIds: [],
       drawerQuery: '',
       drawerFilter: 'all',
 
-      openSession: (input) => {
-        const id = makeSessionId()
-        const now = Date.now()
-        const session: TerminalSession = {
-          id,
-          workspaceId: input.workspaceId,
-          workspaceName: input.workspaceName,
-          repoId: input.repoId,
-          repoName: input.repoName,
-          title: nextTitle(get().sessions, input.repoName),
-          cwd: input.cwd,
-          shell: DEFAULT_SHELL,
-          // Placeholder until the PTY daemon reports real state. Nothing here
-          // is fabricated: the stats below are facts we already know.
-          state: 'idle',
-          stats: [
-            { label: DEFAULT_SHELL, tone: 'dim' },
-            { label: shortenHome(input.cwd), tone: 'dim' },
-          ],
-          createdAt: now,
-          lastActiveAt: now,
-        }
-        set({ sessions: [...get().sessions, session], activeSessionId: id })
-        return id
+      init: async () => {
+        // The daemon may already hold sessions from before this window opened,
+        // which is the whole point of it outliving the app.
+        terminalsIpc.onDaemonEvent(event => {
+          if (event.event === 'sessions-changed') {
+            set({ sessions: event.sessions.map(toViewSession) })
+          }
+        })
+        await get().refresh()
+        set({ ready: true })
       },
 
-      closeSession: (id) => {
+      refresh: async () => {
+        try {
+          const sessions = (await terminalsIpc.listSessions()).map(toViewSession)
+          const active = get().activeSessionId
+          set({
+            sessions,
+            error: null,
+            activeSessionId: sessions.some(session => session.id === active)
+              ? active
+              : (sessions[sessions.length - 1]?.id ?? null),
+          })
+        } catch (error) {
+          set({ error: message(error, 'Could not reach the terminal daemon') })
+        }
+      },
+
+      openSession: async (input) => {
+        try {
+          const info = await terminalsIpc.openSession({
+            workspaceId: input.workspaceId,
+            repoId: input.repoId,
+            repoName: input.repoName,
+            title: nextTitle(get().sessions, input.repoName),
+            cwd: input.cwd,
+            cols: 80,
+            rows: 24,
+          })
+          set({ activeSessionId: info.id, error: null })
+          await get().refresh()
+        } catch (error) {
+          set({ error: message(error, 'Could not start a shell') })
+        }
+      },
+
+      closeSession: async (id) => {
         const { sessions, activeSessionId } = get()
         const index = sessions.findIndex(session => session.id === id)
-        if (index === -1) return
-        const next = sessions.filter(session => session.id !== id)
-        const nextActive = activeSessionId === id
-          ? (next[index]?.id ?? next[index - 1]?.id ?? next[next.length - 1]?.id ?? null)
-          : activeSessionId
-        set({ sessions: next, activeSessionId: nextActive })
-      },
-
-      focusSession: (id) => {
+        const remaining = sessions.filter(session => session.id !== id)
         set({
-          activeSessionId: id,
-          sessions: get().sessions.map(session =>
-            session.id === id ? { ...session, lastActiveAt: Date.now() } : session
-          ),
+          sessions: remaining,
+          activeSessionId: activeSessionId === id
+            ? (remaining[index]?.id ?? remaining[index - 1]?.id ?? remaining[remaining.length - 1]?.id ?? null)
+            : activeSessionId,
         })
+        try {
+          await terminalsIpc.closeSession(id)
+        } catch (error) {
+          set({ error: message(error, 'Could not close the shell') })
+        }
       },
 
-      renameSession: (id, title) => {
+      focusSession: (id) => set({ activeSessionId: id }),
+
+      renameSession: async (id, title) => {
         const trimmed = title.trim()
         if (!trimmed) return
         set({
@@ -118,16 +166,19 @@ export const useTerminalStore = create<TerminalState>()(
             session.id === id ? { ...session, title: trimmed } : session
           ),
         })
+        try {
+          await terminalsIpc.renameSession(id, trimmed)
+        } catch (error) {
+          set({ error: message(error, 'Could not rename the tab') })
+        }
       },
 
-      killWorkspaceSessions: (workspaceId) => {
-        const next = get().sessions.filter(session => session.workspaceId !== workspaceId)
-        const stillActive = next.some(session => session.id === get().activeSessionId)
-        set({
-          sessions: next,
-          activeSessionId: stillActive ? get().activeSessionId : (next[next.length - 1]?.id ?? null),
-        })
+      killWorkspaceSessions: async (workspaceId) => {
+        const doomed = get().sessions.filter(session => session.workspaceId === workspaceId)
+        for (const session of doomed) await get().closeSession(session.id)
       },
+
+      setError: (message) => set({ error: message }),
 
       toggleRail: () => set({ railOpen: !get().railOpen }),
       toggleDrawer: () => set({ drawerOpen: !get().drawerOpen }),
@@ -157,7 +208,7 @@ export const useTerminalStore = create<TerminalState>()(
         const siblings = sessions.filter(session => session.workspaceId === active.workspaceId)
         const index = siblings.findIndex(session => session.id === active.id)
         const next = siblings[(index + offset + siblings.length) % siblings.length]
-        if (next) get().focusSession(next.id)
+        if (next) set({ activeSessionId: next.id })
       },
     }),
     {

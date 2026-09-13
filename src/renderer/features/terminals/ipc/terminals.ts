@@ -1,40 +1,34 @@
-import type { TerminalSession } from '../types'
+import type { AttachResult, ControlEvent, TerminalOpenRequest, TerminalSessionInfo } from '../../../../shared/terminal'
 
-/**
- * Daemon-backed session control. The PTY daemon is not built yet, so these
- * resolve against in-memory state; the call sites and signatures are final so
- * only the bodies change when the daemon lands.
- *
- * Hot-path traffic (input, output, resize) never appears here on purpose. It
- * travels over a MessagePort, not through these control calls.
- */
-
-export function listSessions(): Promise<TerminalSession[]> {
-  return Promise.resolve([])
+export function listSessions(): Promise<TerminalSessionInfo[]> {
+  return window.electronAPI.terminals.list()
 }
 
-export function createSession(data: {
-  workspaceId: string
-  repoId: string | null
-  cwd: string
-  cols: number
-  rows: number
-}): Promise<string> {
-  void data
-  return Promise.resolve(makeSessionId())
+export function openSession(request: TerminalOpenRequest): Promise<TerminalSessionInfo> {
+  return window.electronAPI.terminals.open(request)
 }
 
-export function closeSession(sessionId: string): Promise<void> {
-  void sessionId
-  return Promise.resolve()
+export function closeSession(id: string): Promise<void> {
+  return window.electronAPI.terminals.close(id)
 }
 
-export function renameSession(sessionId: string, title: string): Promise<void> {
-  void sessionId
-  void title
-  return Promise.resolve()
+export function renameSession(id: string, title: string): Promise<void> {
+  return window.electronAPI.terminals.rename({ id, title })
 }
 
-export function makeSessionId(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
+export function attachSession(id: string, cols: number, rows: number): Promise<AttachResult> {
+  return window.electronAPI.terminals.attach({ id, cols, rows })
+}
+
+export function detachSession(id: string): Promise<void> {
+  return window.electronAPI.terminals.detach(id)
+}
+
+/** Resolves with the MessagePort the main process opens for a session. */
+export function onSessionPort(cb: (sessionId: string, port: MessagePort) => void): () => void {
+  return window.electronAPI.terminals.onPort(cb)
+}
+
+export function onDaemonEvent(cb: (event: ControlEvent) => void): () => void {
+  return window.electronAPI.terminals.onEvent(cb)
 }

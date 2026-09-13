@@ -50,7 +50,7 @@ export function SessionRail({ onQuickSwitch }: { onQuickSwitch: () => void }) {
             activeSessionId={activeSessionId}
             onToggle={() => toggleGroup(group.workspaceId)}
             onFocus={focusSession}
-            onRename={renameSession}
+            onRename={(id, title) => void renameSession(id, title)}
           />
         ))}
       </div>
@@ -70,7 +70,7 @@ export function SessionRail({ onQuickSwitch }: { onQuickSwitch: () => void }) {
         <button
           type="button"
           disabled={!activeSession}
-          onClick={() => activeSession && killWorkspaceSessions(activeSession.workspaceId)}
+          onClick={() => activeSession && void killWorkspaceSessions(activeSession.workspaceId)}
           className="w-full flex items-center justify-center gap-1 py-1 rounded text-tm-err hover:bg-tm-2 disabled:opacity-40 text-[10px] leading-[14px] font-semibold uppercase tracking-wider transition-colors bg-transparent border-none cursor-pointer"
         >
           <X size={14} aria-hidden="true" />
