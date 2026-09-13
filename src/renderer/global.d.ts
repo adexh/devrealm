@@ -75,6 +75,9 @@ interface ElectronAPI {
   browse: {
     destDir: () => Promise<string | null>
   }
+  shell: {
+    openExternal: (url: string) => Promise<void>
+  }
   markdown: {
     readFile: (data: MarkdownFileIdentity) => Promise<MarkdownFileContent>
     writeFile: (data: MarkdownFileWriteRequest) => Promise<MarkdownFileMetadata>

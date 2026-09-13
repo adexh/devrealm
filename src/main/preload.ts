@@ -56,6 +56,9 @@ const api = {
   browse: {
     destDir: () => ipcRenderer.invoke('browse:dest-dir'),
   },
+  shell: {
+    openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url),
+  },
   markdown: {
     readFile: (data: { absolutePath: string } | { workspacePath: string; relativePath: string }) => ipcRenderer.invoke('markdown:read-file', data),
     writeFile: (data: ({ absolutePath: string } | { workspacePath: string; relativePath: string }) & { content: string }) => ipcRenderer.invoke('markdown:write-file', data),
