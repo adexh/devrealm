@@ -8,8 +8,16 @@ import '@xterm/xterm/css/xterm.css'
  * Reads the workbench tokens from CSS so the terminal follows the app's
  * light and dark themes instead of hardcoding a palette.
  */
-export function readTerminalTheme(): ITheme {
-  const styles = getComputedStyle(document.documentElement)
+/**
+ * Reads the workbench tokens from CSS so the terminal follows the app's light
+ * and dark themes.
+ *
+ * Must be given an element inside the themed subtree. The app puts its `dark`
+ * class on a div in App.tsx, not on <html>, so reading from documentElement
+ * silently returns the light palette no matter which theme is active.
+ */
+export function readTerminalTheme(scope: Element): ITheme {
+  const styles = getComputedStyle(scope)
   const token = (name: string, fallback: string) => styles.getPropertyValue(name).trim() || fallback
 
   return {
@@ -48,8 +56,7 @@ export type XtermHandle = {
  * The terminal deliberately lives outside React state: output never triggers a
  * render, and only the visible session has a live instance at all.
  */
-export function XtermHost({ theme, readOnly = false, scrollback = 5000, fontSize = 12, onReady, onResize }: {
-  theme: ITheme
+export function XtermHost({ readOnly = false, scrollback = 5000, fontSize = 12, onReady, onResize }: {
   readOnly?: boolean
   scrollback?: number
   fontSize?: number
@@ -66,8 +73,9 @@ export function XtermHost({ theme, readOnly = false, scrollback = 5000, fontSize
     const container = containerRef.current
     if (!container) return
 
+    let appliedTheme = readTerminalTheme(container)
     const terminal = new Terminal({
-      theme,
+      theme: appliedTheme,
       fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
       fontSize,
       lineHeight: 1.35,
@@ -103,6 +111,20 @@ export function XtermHost({ theme, readOnly = false, scrollback = 5000, fontSize
 
     // Debounced, because fit() forces layout and a window drag fires constantly.
     let resizeTimer: number | undefined
+    // The theme toggle flips a class on an ancestor div, which changes the
+    // resolved custom properties without remounting this component.
+    const themeObserver = new MutationObserver(() => {
+      const next = readTerminalTheme(container)
+      if (next.background === appliedTheme.background) return
+      appliedTheme = next
+      terminal.options.theme = next
+    })
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+      subtree: true,
+    })
+
     let torndown = false
     const observer = new ResizeObserver(() => {
       window.clearTimeout(resizeTimer)
@@ -120,6 +142,7 @@ export function XtermHost({ theme, readOnly = false, scrollback = 5000, fontSize
       torndown = true
       window.clearTimeout(resizeTimer)
       try { observer.disconnect() } catch { /* already disconnected */ }
+      try { themeObserver.disconnect() } catch { /* already disconnected */ }
       try { cleanup?.() } catch { /* consumer cleanup failed */ }
       try { webgl?.dispose() } catch { /* context already lost */ }
       try { terminal.dispose() } catch { /* already disposed */ }

@@ -1,6 +1,6 @@
-import React, { useImperativeHandle, useMemo, useRef } from 'react'
+import React, { useImperativeHandle, useRef } from 'react'
 import type { Terminal } from '@xterm/xterm'
-import { XtermHost, readTerminalTheme, type XtermHandle } from '../../../components/XtermHost'
+import { XtermHost, type XtermHandle } from '../../../components/XtermHost'
 
 export interface CloneTerminalHandle {
   write: (data: string) => void
@@ -15,7 +15,6 @@ export interface CloneTerminalHandle {
  */
 export const CloneTerminal = React.forwardRef<CloneTerminalHandle>((_, ref) => {
   const terminalRef = useRef<Terminal | null>(null)
-  const theme = useMemo(() => readTerminalTheme(), [])
 
   function handleReady(handle: XtermHandle) {
     terminalRef.current = handle.terminal
@@ -33,7 +32,7 @@ export const CloneTerminal = React.forwardRef<CloneTerminalHandle>((_, ref) => {
 
   return (
     <div className="h-36 rounded overflow-hidden border border-t-line">
-      <XtermHost theme={theme} readOnly scrollback={500} fontSize={11} onReady={handleReady} />
+      <XtermHost readOnly scrollback={500} fontSize={11} onReady={handleReady} />
     </div>
   )
 })

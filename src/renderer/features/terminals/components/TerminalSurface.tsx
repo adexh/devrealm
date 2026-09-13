@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import type { TerminalSession } from '../types'
 import { useTerminalAttach } from '../hooks/useTerminalAttach'
-import { XtermHost, readTerminalTheme } from '../../../components/XtermHost'
+import { XtermHost } from '../../../components/XtermHost'
 
 /**
  * The live terminal for one session. Keyed by session id by its parent, so
@@ -10,7 +10,6 @@ import { XtermHost, readTerminalTheme } from '../../../components/XtermHost'
  */
 export function TerminalSurface({ session }: { session: TerminalSession }) {
   const [error, setError] = useState<string | null>(null)
-  const theme = useMemo(() => readTerminalTheme(), [])
   const { onReady, onResize } = useTerminalAttach(session.id, setError)
 
   return (
@@ -19,7 +18,7 @@ export function TerminalSurface({ session }: { session: TerminalSession }) {
         <div className="px-3 py-2 bg-tm-2 text-tm-err text-[12px] leading-4 shrink-0">{error}</div>
       )}
       <div className="flex-1 min-h-0 p-2">
-        <XtermHost theme={theme} onReady={onReady} onResize={onResize} />
+        <XtermHost onReady={onReady} onResize={onResize} />
       </div>
     </div>
   )

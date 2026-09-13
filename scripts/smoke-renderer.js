@@ -14,7 +14,13 @@ const os = require('os')
 const ROOT = path.resolve(__dirname, '..')
 const PRELOAD = path.join(ROOT, 'dist/main/preload.js')
 
-const PAGE = `<!doctype html><meta charset="utf-8"><body><script>
+const CSS = fs.readdirSync(path.join(ROOT, 'dist/renderer/assets'))
+  .filter(name => name.startsWith('index-') && name.endsWith('.css'))
+  .map(name => path.join(ROOT, 'dist/renderer/assets', name))[0]
+
+const PAGE = `<!doctype html><meta charset="utf-8">
+<link rel="stylesheet" href="file://${CSS}">
+<body><script>
 const log = (ok, label, extra) => console.log((ok ? 'ok   ' : 'FAIL ') + label + (extra ? ' | ' + extra : ''))
 const wait = ms => new Promise(r => setTimeout(r, ms))
 
@@ -65,6 +71,26 @@ async function run() {
 
   await api.close(info.id)
   log(true, '7 close from the renderer')
+
+  // The app puts its dark class on a div, not <html>, so the terminal theme
+  // must be resolved from an element inside that subtree.
+  const themed = document.createElement('div')
+  themed.className = 'dark'
+  const inner = document.createElement('div')
+  themed.appendChild(inner)
+  document.body.appendChild(themed)
+  const plain = document.createElement('div')
+  document.body.appendChild(plain)
+
+  const read = el => getComputedStyle(el).getPropertyValue('--tm-0').trim()
+  const darkBg = read(inner)
+  const lightBg = read(plain)
+  const rootBg = read(document.documentElement)
+  log(darkBg && lightBg && darkBg !== lightBg,
+      '8 terminal background follows the theme', 'dark ' + darkBg + ', light ' + lightBg)
+  log(rootBg === lightBg,
+      '9 documentElement would have returned the light palette', 'root ' + rootBg)
+
   window.__done = true
 }
 run().catch(e => { console.log('FAIL threw | ' + e.message); window.__done = true })
