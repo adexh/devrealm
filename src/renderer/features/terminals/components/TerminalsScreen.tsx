@@ -1,5 +1,4 @@
 import { useCallback, useEffect } from 'react'
-import { useWorkspaceStore } from '../../../stores/workspaceStore'
 import { useUiStore } from '../../../stores/uiStore'
 import { useTerminalStore } from '../hooks/useTerminalStore'
 import { useTerminalShortcuts } from '../hooks/useTerminalShortcuts'
@@ -11,12 +10,13 @@ import { TerminalEmptyState } from './TerminalEmptyState'
 import { TerminalShortcutBar } from './TerminalShortcutBar'
 import { TerminalSurface } from './TerminalSurface'
 import { TerminalTabBar } from './TerminalTabBar'
+import { WorkspacePicker } from './WorkspacePicker'
 
 export function TerminalsScreen() {
-  const workspaces = useWorkspaceStore(state => state.workspaces)
   const openGlobalSearch = useUiStore(state => state.openGlobalSearch)
 
   const sessions = useTerminalStore(state => state.sessions)
+  const activeWorkspaceId = useTerminalStore(state => state.activeWorkspaceId)
   const activeSessionId = useTerminalStore(state => state.activeSessionId)
   const railOpen = useTerminalStore(state => state.railOpen)
   const drawerOpen = useTerminalStore(state => state.drawerOpen)
@@ -32,12 +32,8 @@ export function TerminalsScreen() {
   useEffect(() => { void init() }, [init])
 
   const activeSession = sessions.find(session => session.id === activeSessionId) ?? null
-
-  // The centre tab bar shows only the active group's tabs. Switching groups is
-  // the left rail's job, which keeps the bar short with many shells open.
-  const groupSessionsForActive = activeSession
-    ? sessions.filter(session => session.workspaceId === activeSession.workspaceId)
-    : []
+  // The tab bar, like everything else here, shows only the selected workspace.
+  const scopedSessions = sessions.filter(session => session.workspaceId === activeWorkspaceId)
 
   const launch = useCallback((target: LaunchTarget) => {
     void openSession({
@@ -50,6 +46,7 @@ export function TerminalsScreen() {
 
   /** New Shell: another shell in the current repo, else open the launcher. */
   const newShell = useCallback(() => {
+    if (!activeWorkspaceId) return
     if (!activeSession) {
       if (!drawerOpen) toggleDrawer()
       return
@@ -60,10 +57,9 @@ export function TerminalsScreen() {
       repoName: activeSession.repoName,
       cwd: activeSession.cwd,
     })
-  }, [activeSession, drawerOpen, toggleDrawer, openSession])
+  }, [activeWorkspaceId, activeSession, drawerOpen, toggleDrawer, openSession])
 
   useTerminalShortcuts(newShell)
-  void workspaces
 
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-tm-bg">
@@ -86,10 +82,12 @@ export function TerminalsScreen() {
         {railOpen && <SessionRail onQuickSwitch={openGlobalSearch} />}
 
         <main className="flex-1 flex flex-col min-w-0 bg-tm-0 overflow-hidden">
-          {activeSession ? (
+          {!activeWorkspaceId ? (
+            <WorkspacePicker />
+          ) : activeSession ? (
             <>
               <TerminalTabBar
-                sessions={groupSessionsForActive}
+                sessions={scopedSessions}
                 activeSessionId={activeSessionId}
                 activeSession={activeSession}
                 onFocus={focusSession}

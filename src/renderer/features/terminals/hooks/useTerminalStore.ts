@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { TerminalSessionInfo } from '../../../../shared/terminal'
 import { useWorkspaceStore } from '../../../stores/workspaceStore'
-import type { DrawerFilter, SessionGroup, SessionStat, TerminalSession } from '../types'
+import type { DrawerFilter, SessionStat, TerminalSession } from '../types'
 import * as terminalsIpc from '../ipc/terminals'
 
 type OpenSessionInput = {
@@ -14,16 +14,18 @@ type OpenSessionInput = {
 
 interface TerminalState {
   sessions: TerminalSession[]
+  /** The workspace the whole screen is scoped to. Null means nothing picked yet. */
+  activeWorkspaceId: string | null
   activeSessionId: string | null
   error: string | null
   ready: boolean
 
   railOpen: boolean
   drawerOpen: boolean
-  collapsedGroupIds: string[]
   drawerQuery: string
   drawerFilter: DrawerFilter
 
+  setActiveWorkspace: (workspaceId: string | null) => void
   init: () => Promise<void>
   refresh: () => Promise<void>
   openSession: (input: OpenSessionInput) => Promise<void>
@@ -35,8 +37,6 @@ interface TerminalState {
 
   toggleRail: () => void
   toggleDrawer: () => void
-  toggleGroup: (workspaceId: string) => void
-  collapseAllGroups: () => void
   setDrawerQuery: (query: string) => void
   setDrawerFilter: (filter: DrawerFilter) => void
   focusAdjacentSession: (offset: 1 | -1) => void
@@ -83,15 +83,27 @@ export const useTerminalStore = create<TerminalState>()(
   persist(
     (set, get) => ({
       sessions: [],
+      activeWorkspaceId: null,
       activeSessionId: null,
       error: null,
       ready: false,
 
       railOpen: true,
       drawerOpen: true,
-      collapsedGroupIds: [],
       drawerQuery: '',
       drawerFilter: 'all',
+
+      setActiveWorkspace: (workspaceId) => {
+        const { activeSessionId, sessions } = get()
+        const active = sessions.find(session => session.id === activeSessionId)
+        // Focus follows the workspace: a session in another one is not visible
+        // from here, so holding it selected would be a lie.
+        set({
+          activeWorkspaceId: workspaceId,
+          activeSessionId: active && active.workspaceId === workspaceId ? activeSessionId : null,
+          drawerQuery: '',
+        })
+      },
 
       init: async () => {
         // The daemon may already hold sessions from before this window opened,
@@ -108,13 +120,21 @@ export const useTerminalStore = create<TerminalState>()(
       refresh: async () => {
         try {
           const sessions = (await terminalsIpc.listSessions()).map(toViewSession)
-          const active = get().activeSessionId
+          const { activeSessionId, activeWorkspaceId } = get()
+
+          // A persisted workspace may have been removed since last run.
+          const knownWorkspaces = useWorkspaceStore.getState().workspaces
+          const workspaceStillExists = knownWorkspaces.some(item => item.id === activeWorkspaceId)
+          const workspaceId = workspaceStillExists ? activeWorkspaceId : null
+
+          const inScope = sessions.filter(session => session.workspaceId === workspaceId)
           set({
             sessions,
             error: null,
-            activeSessionId: sessions.some(session => session.id === active)
-              ? active
-              : (sessions[sessions.length - 1]?.id ?? null),
+            activeWorkspaceId: workspaceId,
+            activeSessionId: inScope.some(session => session.id === activeSessionId)
+              ? activeSessionId
+              : (inScope[inScope.length - 1]?.id ?? null),
           })
         } catch (error) {
           set({ error: message(error, 'Could not reach the terminal daemon') })
@@ -132,7 +152,7 @@ export const useTerminalStore = create<TerminalState>()(
             cols: 80,
             rows: 24,
           })
-          set({ activeSessionId: info.id, error: null })
+          set({ activeWorkspaceId: input.workspaceId, activeSessionId: info.id, error: null })
           await get().refresh()
         } catch (error) {
           set({ error: message(error, 'Could not start a shell') })
@@ -140,13 +160,17 @@ export const useTerminalStore = create<TerminalState>()(
       },
 
       closeSession: async (id) => {
-        const { sessions, activeSessionId } = get()
-        const index = sessions.findIndex(session => session.id === id)
+        const { sessions, activeSessionId, activeWorkspaceId } = get()
         const remaining = sessions.filter(session => session.id !== id)
+        // Successor must come from the visible workspace, not any session.
+        const inScope = remaining.filter(session => session.workspaceId === activeWorkspaceId)
+        const scopeIndex = sessions
+          .filter(session => session.workspaceId === activeWorkspaceId)
+          .findIndex(session => session.id === id)
         set({
           sessions: remaining,
           activeSessionId: activeSessionId === id
-            ? (remaining[index]?.id ?? remaining[index - 1]?.id ?? remaining[remaining.length - 1]?.id ?? null)
+            ? (inScope[scopeIndex]?.id ?? inScope[scopeIndex - 1]?.id ?? inScope[inScope.length - 1]?.id ?? null)
             : activeSessionId,
         })
         try {
@@ -183,30 +207,14 @@ export const useTerminalStore = create<TerminalState>()(
       toggleRail: () => set({ railOpen: !get().railOpen }),
       toggleDrawer: () => set({ drawerOpen: !get().drawerOpen }),
 
-      toggleGroup: (workspaceId) => {
-        const { collapsedGroupIds } = get()
-        set({
-          collapsedGroupIds: collapsedGroupIds.includes(workspaceId)
-            ? collapsedGroupIds.filter(id => id !== workspaceId)
-            : [...collapsedGroupIds, workspaceId],
-        })
-      },
-
-      collapseAllGroups: () => {
-        const { sessions, collapsedGroupIds } = get()
-        const allIds = [...new Set(sessions.map(session => session.workspaceId))]
-        set({ collapsedGroupIds: collapsedGroupIds.length === allIds.length ? [] : allIds })
-      },
-
       setDrawerQuery: (query) => set({ drawerQuery: query }),
       setDrawerFilter: (filter) => set({ drawerFilter: filter }),
 
       focusAdjacentSession: (offset) => {
-        const { sessions, activeSessionId } = get()
-        const active = sessions.find(session => session.id === activeSessionId)
-        if (!active) return
-        const siblings = sessions.filter(session => session.workspaceId === active.workspaceId)
-        const index = siblings.findIndex(session => session.id === active.id)
+        const { sessions, activeSessionId, activeWorkspaceId } = get()
+        const siblings = sessions.filter(session => session.workspaceId === activeWorkspaceId)
+        const index = siblings.findIndex(session => session.id === activeSessionId)
+        if (index === -1) return
         const next = siblings[(index + offset + siblings.length) % siblings.length]
         if (next) set({ activeSessionId: next.id })
       },
@@ -216,26 +224,8 @@ export const useTerminalStore = create<TerminalState>()(
       partialize: (state) => ({
         railOpen: state.railOpen,
         drawerOpen: state.drawerOpen,
-        collapsedGroupIds: state.collapsedGroupIds,
+        activeWorkspaceId: state.activeWorkspaceId,
       }),
     }
   )
 )
-
-/** Buckets sessions by workspace. A group exists only because a tab opened in it. */
-export function groupSessions(sessions: TerminalSession[]): SessionGroup[] {
-  const groups: SessionGroup[] = []
-  for (const session of sessions) {
-    const existing = groups.find(group => group.workspaceId === session.workspaceId)
-    if (existing) {
-      existing.sessions.push(session)
-      continue
-    }
-    groups.push({
-      workspaceId: session.workspaceId,
-      workspaceName: session.workspaceName,
-      sessions: [session],
-    })
-  }
-  return groups
-}

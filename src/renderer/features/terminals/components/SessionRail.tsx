@@ -1,19 +1,17 @@
-import { ChevronsDownUp, Command, Terminal, X } from 'lucide-react'
-import { groupSessions, useTerminalStore } from '../hooks/useTerminalStore'
-import { SessionRailGroup } from './SessionRailGroup'
+import { Command, Terminal, X } from 'lucide-react'
+import { useTerminalStore } from '../hooks/useTerminalStore'
+import { SessionCard } from './SessionCard'
 
+/** Sessions in the selected workspace. Flat, because the tab is the grouping. */
 export function SessionRail({ onQuickSwitch }: { onQuickSwitch: () => void }) {
   const sessions = useTerminalStore(state => state.sessions)
+  const activeWorkspaceId = useTerminalStore(state => state.activeWorkspaceId)
   const activeSessionId = useTerminalStore(state => state.activeSessionId)
-  const collapsedGroupIds = useTerminalStore(state => state.collapsedGroupIds)
   const focusSession = useTerminalStore(state => state.focusSession)
   const renameSession = useTerminalStore(state => state.renameSession)
-  const toggleGroup = useTerminalStore(state => state.toggleGroup)
-  const collapseAllGroups = useTerminalStore(state => state.collapseAllGroups)
   const killWorkspaceSessions = useTerminalStore(state => state.killWorkspaceSessions)
 
-  const groups = groupSessions(sessions)
-  const activeSession = sessions.find(session => session.id === activeSessionId) ?? null
+  const scoped = sessions.filter(session => session.workspaceId === activeWorkspaceId)
 
   return (
     <aside className="w-64 bg-tm-0 flex flex-col shrink-0 overflow-hidden border-r border-tm-line/40">
@@ -23,34 +21,30 @@ export function SessionRail({ onQuickSwitch }: { onQuickSwitch: () => void }) {
           <span className="text-[10px] leading-[14px] font-semibold uppercase tracking-widest text-tm-ink-soft">
             Sessions
           </span>
-          <span className="font-mono text-[10px] leading-[14px] px-1.5 rounded bg-tm-4 text-tm-ink-strong font-semibold">
-            {sessions.length}
-          </span>
+          {activeWorkspaceId && (
+            <span className="font-mono text-[10px] leading-[14px] px-1.5 rounded bg-tm-4 text-tm-ink-strong font-semibold">
+              {scoped.length}
+            </span>
+          )}
         </div>
-        <button
-          type="button"
-          onClick={collapseAllGroups}
-          title="Collapse all groups"
-          className="text-tm-ink-dim hover:text-tm-ink-strong flex items-center bg-transparent border-none cursor-pointer p-0"
-        >
-          <ChevronsDownUp size={16} aria-hidden="true" />
-        </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-1 space-y-3 scrollbar-thin">
-        {groups.length === 0 ? (
+      <div className="flex-1 overflow-y-auto p-1 space-y-1 scrollbar-thin">
+        {!activeWorkspaceId ? (
           <p className="px-2 py-6 text-[12px] leading-4 text-tm-ink-dim text-center">
-            No shells open. Launch one from the repo drawer, or press ⌘T.
+            Select a workspace to see its sessions.
           </p>
-        ) : groups.map(group => (
-          <SessionRailGroup
-            key={group.workspaceId}
-            group={group}
-            collapsed={collapsedGroupIds.includes(group.workspaceId)}
-            activeSessionId={activeSessionId}
-            onToggle={() => toggleGroup(group.workspaceId)}
-            onFocus={focusSession}
-            onRename={(id, title) => void renameSession(id, title)}
+        ) : scoped.length === 0 ? (
+          <p className="px-2 py-6 text-[12px] leading-4 text-tm-ink-dim text-center">
+            No shells open here. Launch one from the repo drawer, or press ⌘T.
+          </p>
+        ) : scoped.map(session => (
+          <SessionCard
+            key={session.id}
+            session={session}
+            active={session.id === activeSessionId}
+            onFocus={() => focusSession(session.id)}
+            onRename={title => void renameSession(session.id, title)}
           />
         ))}
       </div>
@@ -69,8 +63,8 @@ export function SessionRail({ onQuickSwitch }: { onQuickSwitch: () => void }) {
         </button>
         <button
           type="button"
-          disabled={!activeSession}
-          onClick={() => activeSession && void killWorkspaceSessions(activeSession.workspaceId)}
+          disabled={scoped.length === 0}
+          onClick={() => activeWorkspaceId && void killWorkspaceSessions(activeWorkspaceId)}
           className="w-full flex items-center justify-center gap-1 py-1 rounded text-tm-err hover:bg-tm-2 disabled:opacity-40 text-[10px] leading-[14px] font-semibold uppercase tracking-wider transition-colors bg-transparent border-none cursor-pointer"
         >
           <X size={14} aria-hidden="true" />

@@ -3,69 +3,57 @@ import Fuse from 'fuse.js'
 import { useWorkspaceStore } from '../../../stores/workspaceStore'
 import { FUZZY_SEARCH_THRESHOLD } from '../../../constants'
 import { useTerminalStore } from './useTerminalStore'
-import type { LaunchTarget, LaunchTargetGroup } from '../types'
+import type { LaunchTarget } from '../types'
 
 /**
- * Builds the repo drawer's tree from the workspaces and repos the app already
- * tracks, then applies the drawer's filter chip and search box.
+ * Repos in the selected workspace, after the drawer's filter chip and search.
+ * Returns nothing until a workspace is picked, which is what keeps the drawer
+ * empty on the landing screen.
  */
-export function useLaunchTargets(): { groups: LaunchTargetGroup[]; total: number; openCount: number } {
-  const workspaces = useWorkspaceStore(state => state.workspaces)
+export function useLaunchTargets(): { targets: LaunchTarget[]; total: number; openCount: number } {
   const repos = useWorkspaceStore(state => state.repos)
+  const activeWorkspaceId = useTerminalStore(state => state.activeWorkspaceId)
   const sessions = useTerminalStore(state => state.sessions)
   const query = useTerminalStore(state => state.drawerQuery)
   const filter = useTerminalStore(state => state.drawerFilter)
 
-  const allTargets = useMemo<LaunchTarget[]>(() => repos.map(repo => ({
-    id: repo.id,
-    workspaceId: repo.workspaceId,
-    name: repo.name,
-    path: repo.path,
-    kind: 'repo' as const,
-    openCount: 0,
-    hasLocalPath: Boolean(repo.path),
-  })), [repos])
-
-  const withOpenCounts = useMemo<LaunchTarget[]>(() => allTargets.map(target => ({
-    ...target,
-    openCount: sessions.filter(session => session.repoId === target.id).length,
-  })), [allTargets, sessions])
+  const scoped = useMemo<LaunchTarget[]>(() => {
+    if (!activeWorkspaceId) return []
+    return repos
+      .filter(repo => repo.workspaceId === activeWorkspaceId)
+      .map(repo => ({
+        id: repo.id,
+        workspaceId: repo.workspaceId,
+        name: repo.name,
+        path: repo.path,
+        kind: 'repo' as const,
+        openCount: sessions.filter(session => session.repoId === repo.id).length,
+        hasLocalPath: Boolean(repo.path),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [repos, activeWorkspaceId, sessions])
 
   const fuse = useMemo(
-    () => new Fuse(withOpenCounts, { keys: ['name', 'path'], threshold: FUZZY_SEARCH_THRESHOLD }),
-    [withOpenCounts]
+    () => new Fuse(scoped, { keys: ['name', 'path'], threshold: FUZZY_SEARCH_THRESHOLD }),
+    [scoped]
   )
 
-  const matched = useMemo(() => {
+  const targets = useMemo(() => {
     const trimmed = query.trim()
-    const base = trimmed ? fuse.search(trimmed).map(result => result.item) : withOpenCounts
+    const base = trimmed ? fuse.search(trimmed).map(result => result.item) : scoped
     if (filter === 'open') return base.filter(target => target.openCount > 0)
     if (filter === 'recent') {
-      const recentRepoIds = new Set(
+      const recent = new Set(
         [...sessions].sort((a, b) => b.lastActiveAt - a.lastActiveAt).map(session => session.repoId)
       )
-      return base.filter(target => recentRepoIds.has(target.id))
+      return base.filter(target => recent.has(target.id))
     }
     return base
-  }, [fuse, query, filter, withOpenCounts, sessions])
-
-  const groups = useMemo<LaunchTargetGroup[]>(() => {
-    const byWorkspace: LaunchTargetGroup[] = []
-    for (const workspace of workspaces) {
-      const targets = matched.filter(target => target.workspaceId === workspace.id)
-      if (targets.length === 0) continue
-      byWorkspace.push({
-        workspaceId: workspace.id,
-        workspaceName: workspace.name,
-        targets: targets.sort((a, b) => a.name.localeCompare(b.name)),
-      })
-    }
-    return byWorkspace
-  }, [workspaces, matched])
+  }, [fuse, query, filter, scoped, sessions])
 
   return {
-    groups,
-    total: withOpenCounts.length,
-    openCount: withOpenCounts.filter(target => target.openCount > 0).length,
+    targets,
+    total: scoped.length,
+    openCount: scoped.filter(target => target.openCount > 0).length,
   }
 }

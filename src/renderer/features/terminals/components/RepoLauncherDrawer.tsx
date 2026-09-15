@@ -3,7 +3,7 @@ import { FolderTree, Lightbulb, Search } from 'lucide-react'
 import { useLaunchTargets } from '../hooks/useLaunchTargets'
 import { useTerminalStore } from '../hooks/useTerminalStore'
 import type { DrawerFilter, LaunchTarget } from '../types'
-import { RepoLauncherGroup } from './RepoLauncherGroup'
+import { RepoTargetRow } from './RepoTargetRow'
 
 const FILTERS: { id: DrawerFilter; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -12,7 +12,8 @@ const FILTERS: { id: DrawerFilter; label: string }[] = [
 ]
 
 export function RepoLauncherDrawer({ onLaunch }: { onLaunch: (target: LaunchTarget) => void }) {
-  const { groups, total, openCount } = useLaunchTargets()
+  const { targets, total, openCount } = useLaunchTargets()
+  const activeWorkspaceId = useTerminalStore(state => state.activeWorkspaceId)
   const query = useTerminalStore(state => state.drawerQuery)
   const filter = useTerminalStore(state => state.drawerFilter)
   const setDrawerQuery = useTerminalStore(state => state.setDrawerQuery)
@@ -74,13 +75,17 @@ export function RepoLauncherDrawer({ onLaunch }: { onLaunch: (target: LaunchTarg
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-1 space-y-3 scrollbar-thin">
-        {groups.length === 0 ? (
+      <div className="flex-1 overflow-y-auto p-1 space-y-1 scrollbar-thin">
+        {!activeWorkspaceId ? (
           <p className="px-2 py-6 text-[12px] leading-4 text-tm-ink-dim text-center">
-            No repos match. Add a workspace from the Dashboard.
+            Select a workspace to see its repos.
           </p>
-        ) : groups.map(group => (
-          <RepoLauncherGroup key={group.workspaceId} group={group} onLaunch={onLaunch} />
+        ) : targets.length === 0 ? (
+          <p className="px-2 py-6 text-[12px] leading-4 text-tm-ink-dim text-center">
+            No repos match in this workspace.
+          </p>
+        ) : targets.map(target => (
+          <RepoTargetRow key={target.id} target={target} onLaunch={() => onLaunch(target)} />
         ))}
       </div>
 
