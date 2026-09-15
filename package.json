@@ -21,8 +21,9 @@
     "lint:daemon": "tsc -p tsconfig.daemon.json --noEmit",
     "smoke:daemon": "npm run build:daemon && node scripts/smoke-daemon.js",
     "smoke:main": "npm run build:main && npm run build:daemon && electron scripts/smoke-main.js",
-    "smoke": "npm run smoke:daemon && npm run smoke:main && npm run smoke:renderer",
-    "smoke:renderer": "npm run build && electron scripts/smoke-renderer.js"
+    "smoke": "npm run smoke:db && npm run smoke:daemon && npm run smoke:main && npm run smoke:renderer",
+    "smoke:renderer": "npm run build && electron scripts/smoke-renderer.js",
+    "smoke:db": "npm run build:main && node scripts/smoke-db.js"
   },
   "build": {
     "appId": "com.devrealm.app",
