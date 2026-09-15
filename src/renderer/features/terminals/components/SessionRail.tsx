@@ -1,5 +1,5 @@
 import { Command, Terminal, X } from 'lucide-react'
-import { useTerminalStore } from '../hooks/useTerminalStore'
+import { useTerminalStore } from '../../../stores/terminalStore'
 import { SessionCard } from './SessionCard'
 
 /** Sessions in the selected workspace. Flat, because the tab is the grouping. */

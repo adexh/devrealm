@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { useWorkspaceStore } from '../../../stores/workspaceStore'
-import { useTerminalStore } from '../hooks/useTerminalStore'
+import { useTerminalStore } from '../../../stores/terminalStore'
 import { CloseWorkspaceModal } from './CloseWorkspaceModal'
 
 /**

@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import Fuse from 'fuse.js'
 import { useWorkspaceStore } from '../../../stores/workspaceStore'
 import { FUZZY_SEARCH_THRESHOLD } from '../../../constants'
-import { useTerminalStore } from './useTerminalStore'
+import { useTerminalStore } from '../../../stores/terminalStore'
 import type { LaunchTarget } from '../types'
 
 /**

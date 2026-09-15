@@ -66,7 +66,16 @@ function check(label, ok, extra = '') {
 
 async function main() {
   const daemon = spawn(ELECTRON, [path.join(ROOT, 'dist/daemon/main.js'), `--socket=${SOCK}`, `--data-dir=${DATA}`], {
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+    env: {
+      ...process.env,
+      ELECTRON_RUN_AS_NODE: '1',
+      // Launcher state the daemon must not pass on to user shells.
+      CLAUDE_CODE_CHILD_SESSION: 'leaked',
+      CLAUDE_CODE_MESSAGING_TOKEN: 'leaked',
+      CLAUDECODE: 'leaked',
+      VSCODE_IPC_HOOK: 'leaked',
+      DEVREALM_SMOKE_KEPT: 'kept',
+    },
     detached: true, stdio: ['ignore', 'ignore', 'pipe'],
   })
   daemon.stderr.on('data', d => process.stdout.write(`[daemon] ${d}`))
@@ -119,8 +128,18 @@ async function main() {
   await wait(1200)
   check('8 the same shell accepts input from the new client', seenB.includes('SECOND_CLIENT_OK'))
 
+  // The daemon runs with launcher state in its own environment; none of it
+  // should reach a shell, while ordinary variables still must.
+  let envOut = ''
+  b.onData(t => { envOut += t })
+  b.input(reattached.result.ref,
+    'echo "LEAK:[$CLAUDE_CODE_CHILD_SESSION][$CLAUDE_CODE_MESSAGING_TOKEN][$CLAUDECODE][$VSCODE_IPC_HOOK] KEPT:[$DEVREALM_SMOKE_KEPT]"\r')
+  await wait(1500)
+  check('9 launcher session state is stripped from the shell', envOut.includes('LEAK:[][][][]'))
+  check('10 ordinary variables still reach the shell', envOut.includes('KEPT:[kept]'))
+
   const closed = await b.control('close', { id })
-  check('9 close tears the session down', closed.ok === true)
+  check('11 close tears the session down', closed.ok === true)
   b.socket.destroy()
   process.kill(daemon.pid, 'SIGTERM')
   fs.rmSync(DATA, { recursive: true, force: true })

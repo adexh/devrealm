@@ -1,9 +1,9 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { TerminalSessionInfo } from '../../../../shared/terminal'
-import { useWorkspaceStore } from '../../../stores/workspaceStore'
-import type { DrawerFilter, SessionStat, TerminalSession } from '../types'
-import * as terminalsIpc from '../ipc/terminals'
+import type { TerminalSessionInfo } from '../../shared/terminal'
+import { useWorkspaceStore } from './workspaceStore'
+import type { DrawerFilter, SessionStat, TerminalSession } from '../features/terminals/types'
+import * as terminalsIpc from '../features/terminals/ipc/terminals'
 
 type OpenSessionInput = {
   workspaceId: string
@@ -29,6 +29,7 @@ interface TerminalState {
   init: () => Promise<void>
   refresh: () => Promise<void>
   openSession: (input: OpenSessionInput) => Promise<void>
+  openRepoSession: (input: OpenSessionInput) => Promise<void>
   closeSession: (id: string) => Promise<void>
   focusSession: (id: string) => void
   renameSession: (id: string, title: string) => Promise<void>
@@ -76,6 +77,9 @@ function nextTitle(sessions: TerminalSession[], repoName: string): string {
   return sameRepo.length === 0 ? repoName : `${repoName} ${sameRepo.length + 1}`
 }
 
+/** Set once the daemon feed is wired, so repeated init() calls do not stack listeners. */
+let daemonFeed: (() => void) | null = null
+
 function message(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
 }
@@ -108,8 +112,10 @@ export const useTerminalStore = create<TerminalState>()(
 
       init: async () => {
         // The daemon may already hold sessions from before this window opened,
-        // which is the whole point of it outliving the app.
-        terminalsIpc.onDaemonEvent(event => {
+        // which is the whole point of it outliving the app. init() runs on every
+        // mount of the terminals screen and on the first launch from elsewhere,
+        // so the subscription is taken once and kept for the window's life.
+        daemonFeed ??= terminalsIpc.onDaemonEvent(event => {
           if (event.event === 'sessions-changed') {
             set({ sessions: event.sessions.map(toViewSession) })
           }
@@ -158,6 +164,25 @@ export const useTerminalStore = create<TerminalState>()(
         } catch (error) {
           set({ error: message(error, 'Could not start a shell') })
         }
+      },
+
+      /**
+       * Launching from outside the terminals screen, where the caller only knows
+       * a repo: reuse that repo's newest shell if one is already running, else
+       * start one. Listing first matters because the daemon can hold shells this
+       * window has never seen.
+       */
+      openRepoSession: async (input) => {
+        if (!get().ready) await get().init()
+        const running = get().sessions.filter(
+          session => session.workspaceId === input.workspaceId && session.repoId === input.repoId
+        )
+        const newest = running[running.length - 1]
+        if (!newest) {
+          await get().openSession(input)
+          return
+        }
+        set({ activeWorkspaceId: newest.workspaceId, activeSessionId: newest.id, error: null })
       },
 
       closeSession: async (id) => {

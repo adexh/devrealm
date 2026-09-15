@@ -1,5 +1,5 @@
 import { Columns2, FolderTree, PanelLeft, Plus } from 'lucide-react'
-import { useTerminalStore } from '../hooks/useTerminalStore'
+import { useTerminalStore } from '../../../stores/terminalStore'
 import { BUSY_STATES } from '../constants'
 import { WorkspaceTabs } from './WorkspaceTabs'
 

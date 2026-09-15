@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react'
 import { useUiStore } from '../../../stores/uiStore'
-import { useTerminalStore } from '../hooks/useTerminalStore'
+import { useTerminalStore } from '../../../stores/terminalStore'
 import { useTerminalShortcuts } from '../hooks/useTerminalShortcuts'
 import type { LaunchTarget } from '../types'
 import { RepoLauncherDrawer } from './RepoLauncherDrawer'

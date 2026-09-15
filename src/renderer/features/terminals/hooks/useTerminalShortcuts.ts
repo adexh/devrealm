@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useTerminalStore } from './useTerminalStore'
+import { useTerminalStore } from '../../../stores/terminalStore'
 
 /**
  * Terminal-screen keyboard shortcuts. Mounted only while the Terminals screen

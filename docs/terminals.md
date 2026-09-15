@@ -224,11 +224,28 @@ src/renderer/features/terminals/        the UI, standard feature folder layout
 
 Every one of these was a real bug, not a hypothetical.
 
-**`ELECTRON_RUN_AS_NODE` leaks into shells.** The daemon runs with it set. Without
-stripping it, every shell inherits it and any `node` the user runs becomes
-Electron in node mode, failing in confusing, far-away ways. `shellEnv.ts` strips
-it along with `NODE_OPTIONS` and every `ELECTRON_*` var. It also breaks
-`npm start` from a VS Code integrated terminal, which sets it.
+**The launching environment leaks into every shell.** This bit twice.
+
+`ELECTRON_RUN_AS_NODE` is the obvious one: the daemon runs with it set, so
+without stripping it every shell inherits it and any `node` the user runs becomes
+Electron in node mode. It also breaks `npm start` from a VS Code integrated
+terminal, which sets the same variable.
+
+The wider problem is the **launching tool's session state**. Start DevRealm from
+a Claude Code session inside VS Code and its shells inherited about twenty-five
+variables: `CLAUDE_CODE_CHILD_SESSION` (so `claude` disabled transcript saving
+and said so), `CLAUDE_CODE_MESSAGING_TOKEN` (a session token sitting in the
+environment of every command the user runs), `CLAUDE_CODE_SESSION_ID`,
+`VSCODE_IPC_HOOK`, `GIT_ASKPASS` pointing at a VS Code helper, and more.
+
+`shellEnv.ts` strips the `ELECTRON_`, `CLAUDE_CODE_` and `VSCODE_` prefixes plus
+an explicit list. It deliberately keeps `ANTHROPIC_API_KEY` and
+`CLAUDE_CONFIG_DIR`, which are user configuration rather than session state.
+
+Stripping is safe because shells start login and interactive, so anything the
+user configured in their profile is set again. Only launch-time injection is
+lost, which is the point. `smoke:daemon` asserts both halves: the markers do not
+arrive, and an ordinary variable still does.
 
 **Preload runs sandboxed.** `require` there is limited to `electron` and a few
 Node builtins. A relative import throws "module not found" and takes the **whole

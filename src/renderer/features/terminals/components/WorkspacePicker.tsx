@@ -1,6 +1,6 @@
 import { FolderOpen, Terminal } from 'lucide-react'
 import { useWorkspaceStore } from '../../../stores/workspaceStore'
-import { useTerminalStore } from '../hooks/useTerminalStore'
+import { useTerminalStore } from '../../../stores/terminalStore'
 
 /**
  * The landing state. Nothing is scoped until a workspace is chosen, so the

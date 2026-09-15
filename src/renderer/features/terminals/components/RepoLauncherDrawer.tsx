@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { FolderTree, Lightbulb, Search } from 'lucide-react'
 import { useLaunchTargets } from '../hooks/useLaunchTargets'
-import { useTerminalStore } from '../hooks/useTerminalStore'
+import { useTerminalStore } from '../../../stores/terminalStore'
 import type { DrawerFilter, LaunchTarget } from '../types'
 import { RepoTargetRow } from './RepoTargetRow'
 
