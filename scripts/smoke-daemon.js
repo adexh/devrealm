@@ -18,7 +18,7 @@ const ROOT = path.resolve(__dirname, '..')
 const { FrameDecoder, FrameType, encodeFrame, encodeJsonFrame, PROTOCOL_VERSION } = require(path.join(ROOT, 'dist/shared/terminalProtocol.js'))
 
 const SOCK = path.join(os.tmpdir(), `devrealm-smoke-${process.pid}.sock`)
-const DATA = path.join(os.tmpdir(), `devrealm-smoke-data-${process.pid}`)
+const DB = path.join(os.tmpdir(), `devrealm-smoke-${process.pid}.db`)
 const ELECTRON = process.platform === 'darwin'
   ? path.join(ROOT, 'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron')
   : path.join(ROOT, 'node_modules/electron/dist', process.platform === 'win32' ? 'electron.exe' : 'electron')
@@ -65,7 +65,7 @@ function check(label, ok, extra = '') {
 }
 
 async function main() {
-  const daemon = spawn(ELECTRON, [path.join(ROOT, 'dist/daemon/main.js'), `--socket=${SOCK}`, `--data-dir=${DATA}`], {
+  const daemon = spawn(ELECTRON, [path.join(ROOT, 'dist/daemon/main.js'), `--socket=${SOCK}`, `--db=${DB}`], {
     env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
     detached: true, stdio: ['ignore', 'ignore', 'pipe'],
   })
@@ -119,11 +119,24 @@ async function main() {
   await wait(1200)
   check('8 the same shell accepts input from the new client', seenB.includes('SECOND_CLIENT_OK'))
 
+  // SQLite is the registry of record; another process can read it directly.
+  const { DatabaseSync } = require('node:sqlite')
+  const readDb = () => {
+    const db = new DatabaseSync(DB, { readOnly: true })
+    const rows = db.prepare('SELECT id, title, pid FROM terminal_sessions').all()
+    db.close()
+    return rows
+  }
+  const beforeClose = readDb()
+  check('9 session is persisted in sqlite', beforeClose.length === 1 && beforeClose[0].id === id,
+        `title ${beforeClose[0] && beforeClose[0].title}, pid ${beforeClose[0] && beforeClose[0].pid}`)
+
   const closed = await b.control('close', { id })
-  check('9 close tears the session down', closed.ok === true)
+  check('10 close tears the session down', closed.ok === true)
+  check('11 closing removes its row', readDb().length === 0)
   b.socket.destroy()
   process.kill(daemon.pid, 'SIGTERM')
-  fs.rmSync(DATA, { recursive: true, force: true })
+  for (const suffix of ['', '-wal', '-shm']) fs.rmSync(DB + suffix, { force: true })
   console.log(failures === 0 ? '\nall checks passed' : `\n${failures} check(s) failed`)
   process.exit(failures === 0 ? 0 : 1)
 }

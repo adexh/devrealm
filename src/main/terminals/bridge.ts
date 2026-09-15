@@ -1,6 +1,6 @@
 import { MessageChannelMain, type MessagePortMain, type WebContents } from 'electron'
 import type { AttachResult } from '../../shared/terminal'
-import { encodeAck, encodeResize } from '../../shared/terminalProtocol'
+import { encodeAck, encodeResize } from '../../shared/node/terminalProtocol'
 import { daemonClient } from './daemonClient'
 
 export const TERMINAL_PORT_CHANNEL = 'terminals:port'

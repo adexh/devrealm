@@ -23,9 +23,10 @@ npm run lint:renderer  # tsc -p tsconfig.renderer.json --noEmit
 npm run lint:daemon  # tsc -p tsconfig.daemon.json --noEmit
 
 # Smoke tests (no unit test suite)
-npm run smoke        # both of the below
-npm run smoke:daemon # drives the real PTY daemon over its socket
-npm run smoke:main   # drives the main-process DaemonClient under Electron
+npm run smoke          # all three of the below
+npm run smoke:daemon   # drives the real PTY daemon over its socket
+npm run smoke:main     # drives the main-process DaemonClient under Electron
+npm run smoke:renderer # drives a real BrowserWindow with the real preload
 ```
 
 `node-pty` is a native module built against Electron's ABI. After a fresh
@@ -53,11 +54,25 @@ This is an **Electron desktop app** for managing developer workspaces, git repos
 
 **PTY daemon** (`src/daemon/`): a detached, long-lived process owning every terminal PTY, so shells survive quitting or updating the app. Runs under `process.execPath` with `ELECTRON_RUN_AS_NODE=1`, which keeps node-pty's native ABI matched and ships no second runtime. Speaks a length-prefixed binary protocol over a Unix socket (named pipe on Windows) whose file mode `0600` is the whole auth boundary. See `src/daemon/README.md`.
 
-**Shared** (`src/shared/`): types shared across processes — `types.ts` (`Workspace`, `Repo`, `ClaudeSettingsFile`, ...), `terminal.ts` (session and control-plane shapes), `terminalConstants.ts` (protocol values, Buffer-free so the renderer can import it), and `terminalProtocol.ts` (frame encode/decode, Node-only and excluded from the renderer's tsconfig).
+**Shared** (`src/shared/`): types shared across processes — `types.ts` (`Workspace`, `Repo`, `ClaudeSettingsFile`, ...), `terminal.ts` (session and control-plane shapes), `terminalConstants.ts` (protocol values, Buffer-free so the renderer can import it).
+
+**Node-only shared** (`src/shared/node/`): code the main process and the daemon both need but the renderer must never load — `db.ts` (SQLite) and `terminalProtocol.ts` (frame encode/decode, uses `Buffer`). The whole directory is excluded from the renderer's tsconfig. Put anything touching Node builtins here, not in `src/shared/`.
+
+### Persistence
+
+**New data goes in SQLite, not files.** The database is `~/.workspace-manager/devrealm.db`, opened through `src/shared/node/db.ts`.
+
+- Uses `node:sqlite`, built into the Node that Electron bundles. No native module, so nothing to rebuild against Electron's ABI and nothing to `asarUnpack`, unlike node-pty. Verified to load without an experimental warning on Electron 42 (Node 24.15), in both the main process and the daemon.
+- Schema changes are append-only entries in the `MIGRATIONS` array in `db.ts`, applied in a transaction and tracked by `PRAGMA user_version`. Never edit or reorder a shipped migration.
+- WAL mode, so the daemon can write while another process reads.
+- The renderer never opens the database. It reaches data through IPC.
+
+The existing JSON stores (`workspaces.json`, `config.json`) have **not** been migrated and still work as they did. Migrate them deliberately, not incidentally.
 
 ### Key Data Flows
 
-- **Workspace/repo data**: persisted to `~/.workspace-manager/workspaces.json` by `store.ts`; read/written exclusively through IPC.
+- **Workspace/repo data**: persisted to `~/.workspace-manager/workspaces.json` by `store.ts`; read/written exclusively through IPC. Not yet on SQLite.
+- **Terminal sessions**: mirrored into the `terminal_sessions` table by the daemon's `Registry`, so another process can read what is running without going through the socket. The daemon clears the table on start, since it owns every pty and any surviving row describes a process that no longer exists.
 - **Claude settings**: `ipc.ts` reads and writes `.claude/settings.json` and `.claude/settings.local.json` inside each workspace directory.
 - **Plugins/Skills**: discovered from `~/.claude/plugins/`; marketplace manifests fetched from GitHub raw content URLs.
 - **Markdown files**: edited with Lexical (`src/renderer/features/markdown-editor/`); paths can be absolute or workspace-relative.
@@ -94,7 +109,7 @@ features/<feature>/
 
 Three separate `tsconfig` files with different targets:
 - `tsconfig.main.json` — ES2020, Node16 modules, strict.
-- `tsconfig.renderer.json` — ES2020, ESNext modules, DOM libs, JSX `react-jsx`, `moduleResolution: bundler`. Excludes `src/shared/terminalProtocol.ts`, which uses `Buffer`.
+- `tsconfig.renderer.json` — ES2020, ESNext modules, DOM libs, JSX `react-jsx`, `moduleResolution: bundler`. Excludes `src/shared/node`, which is Node-only.
 - `tsconfig.daemon.json` — ES2020, Node16 modules, `types: ["node"]`, covering `src/daemon` and `src/shared`.
 
 Run the matching `lint:main`, `lint:renderer` or `lint:daemon` for the area you edited.

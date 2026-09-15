@@ -4,14 +4,14 @@ import net from 'net'
 import os from 'os'
 import path from 'path'
 import type { ControlEvent, ControlOp, TerminalSessionInfo } from '../../shared/terminal'
-import { DAEMON_PIPE_NAME, DAEMON_SOCKET_NAME, TERMINAL_DATA_DIR } from '../../shared/terminal'
+import { DAEMON_PIPE_NAME, DAEMON_SOCKET_NAME } from '../../shared/terminal'
 import {
   FrameDecoder,
   FrameType,
   PROTOCOL_VERSION,
   encodeFrame,
   encodeJsonFrame,
-} from '../../shared/terminalProtocol'
+} from '../../shared/node/terminalProtocol'
 import { DATA_DIR_NAME } from '../constants'
 
 type RefHandler = {
@@ -22,6 +22,7 @@ type RefHandler = {
 
 const CONNECT_TIMEOUT_MS = 5000
 const QUEUED_FRAME_LIMIT = 256
+const DB_FILE_NAME = 'devrealm.db'
 const CONNECT_RETRY_MS = 25
 
 /**
@@ -239,7 +240,7 @@ export class DaemonClient {
     const child = spawn(process.execPath, [
       entry,
       `--socket=${this.socketPath}`,
-      `--data-dir=${path.join(this.dataDir, TERMINAL_DATA_DIR)}`,
+      `--db=${path.join(this.dataDir, DB_FILE_NAME)}`,
     ], {
       env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
       detached: true,

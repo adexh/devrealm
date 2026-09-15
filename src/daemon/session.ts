@@ -3,7 +3,7 @@ import { Terminal as HeadlessTerminal } from '@xterm/headless'
 import { SerializeAddon } from '@xterm/addon-serialize'
 import type { TerminalOpenRequest, TerminalSessionInfo } from '../shared/terminal'
 import { SNAPSHOT_SCROLLBACK_LINES } from '../shared/terminal'
-import { Coalesce, FlowControl } from '../shared/terminalProtocol'
+import { Coalesce, FlowControl } from '../shared/node/terminalProtocol'
 
 type Subscriber = {
   onData: (chunk: Buffer) => void

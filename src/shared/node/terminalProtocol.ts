@@ -18,9 +18,9 @@
  * Node-only: excluded from the renderer's tsconfig. Values the renderer also
  * needs live in `terminalConstants.ts`.
  */
-import { FrameType, HEADER_SIZE, MAX_FRAME_PAYLOAD } from './terminalConstants'
+import { FrameType, HEADER_SIZE, MAX_FRAME_PAYLOAD } from '../terminalConstants'
 
-export * from './terminalConstants'
+export * from '../terminalConstants'
 
 export type Frame = {
   type: number

@@ -9,7 +9,7 @@ import {
   encodeFrame,
   encodeJsonFrame,
   encodeExit,
-} from '../shared/terminalProtocol'
+} from '../shared/node/terminalProtocol'
 import type { Registry } from './registry'
 
 type Attachment = {
