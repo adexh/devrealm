@@ -14,6 +14,13 @@ import {
 } from '../../shared/node/terminalProtocol'
 import { DATA_DIR_NAME } from '../constants'
 
+type HelloAck = {
+  ok: boolean
+  protocolVersion: number
+  pid: number
+  buildId?: string
+}
+
 type RefHandler = {
   onData: (chunk: Buffer) => void
   onSnapshot: (chunk: Buffer) => void
@@ -22,6 +29,18 @@ type RefHandler = {
 
 const CONNECT_TIMEOUT_MS = 5000
 const QUEUED_FRAME_LIMIT = 256
+
+/**
+ * In development the daemon outlives edits to its own source, so a rebuilt
+ * daemon keeps serving the old code until someone kills it by hand. That is how
+ * stale env-stripping rules kept reaching shells. Comparing build ids makes the
+ * restart automatic.
+ *
+ * Development only. In production a mismatch means an app update replaced the
+ * bundle, and restarting there would kill the user's running shells; that case
+ * wants fd handoff, which is not built.
+ */
+const IS_DEV = process.env.NODE_ENV === 'development'
 const CONNECT_RETRY_MS = 25
 
 /**
@@ -115,6 +134,7 @@ export class DaemonClient {
   private async connectOrSpawn(): Promise<void> {
     try {
       await this.connectOnce()
+      await this.restartIfStale()
       return
     } catch {
       // Nothing listening. Either the daemon is not running, or the socket file
@@ -173,16 +193,57 @@ export class DaemonClient {
   private handshake(): Promise<void> {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('Daemon handshake timed out')), 3000)
-      const onAck = (ok: boolean) => {
+      this.handshakeResolver = (ack) => {
         clearTimeout(timer)
-        ok ? resolve() : reject(new Error('Daemon protocol version mismatch'))
+        if (!ack?.ok) {
+          reject(new Error('Daemon protocol version mismatch'))
+          return
+        }
+        this.daemonBuildId = ack.buildId ?? null
+        resolve()
       }
-      this.handshakeResolver = onAck
       this.write(encodeJsonFrame(FrameType.Hello, 0, { protocolVersion: PROTOCOL_VERSION }))
     })
   }
 
-  private handshakeResolver: ((ok: boolean) => void) | null = null
+  /** Build id of the daemon bundle on disk right now. */
+  private currentBuildId(): string {
+    try {
+      return String(fs.statSync(this.daemonEntry()).mtimeMs)
+    } catch {
+      return ''
+    }
+  }
+
+  private daemonEntry(): string {
+    // __dirname is dist/main/terminals, the daemon is at dist/daemon.
+    return path.join(__dirname, '..', '..', 'daemon', 'main.js')
+  }
+
+  /**
+   * Replaces a daemon running older code than what is on disk. Sessions it
+   * owned are lost, which is acceptable in development and is why this is
+   * gated to it.
+   */
+  private async restartIfStale(): Promise<boolean> {
+    if (!IS_DEV) return false
+    const expected = this.currentBuildId()
+    if (!expected || !this.daemonBuildId || this.daemonBuildId === expected) return false
+
+    this.write(encodeJsonFrame(FrameType.ControlRequest, 0, { op: 'shutdown', requestId: -1 }))
+    this.socket?.destroy()
+    this.socket = null
+    this.daemonBuildId = null
+
+    // Give the old daemon time to unlink its socket before taking its place.
+    await new Promise(resolve => setTimeout(resolve, 200))
+    this.spawnDaemon()
+    await this.connectWithBackoff()
+    return true
+  }
+
+  private handshakeResolver: ((ack: HelloAck | null) => void) | null = null
+  private daemonBuildId: string | null = null
 
   private handleChunk(chunk: Buffer): void {
     let frames
@@ -196,8 +257,7 @@ export class DaemonClient {
     for (const frame of frames) {
       switch (frame.type) {
         case FrameType.HelloAck: {
-          const body = JSON.parse(frame.payload.toString('utf8'))
-          this.handshakeResolver?.(Boolean(body.ok))
+          this.handshakeResolver?.(JSON.parse(frame.payload.toString('utf8')) as HelloAck)
           this.handshakeResolver = null
           break
         }
@@ -232,12 +292,12 @@ export class DaemonClient {
    */
   private spawnDaemon(): void {
     fs.mkdirSync(this.dataDir, { recursive: true })
-    // __dirname is dist/main/terminals, the daemon is at dist/daemon.
-    const entry = path.join(__dirname, '..', '..', 'daemon', 'main.js')
+    const entry = this.daemonEntry()
     if (!fs.existsSync(entry)) throw new Error(`Terminal daemon build missing at ${entry}`)
 
     const child = spawn(process.execPath, [
       entry,
+      `--build-id=${this.currentBuildId()}`,
       `--socket=${this.socketPath}`,
       `--data-dir=${path.join(this.dataDir, TERMINAL_DATA_DIR)}`,
     ], {

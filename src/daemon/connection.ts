@@ -31,7 +31,9 @@ export class Connection {
   constructor(
     private readonly socket: Socket,
     private readonly registry: Registry,
-    private readonly onActivity: () => void
+    private readonly onActivity: () => void,
+    private readonly buildId: string,
+    private readonly onShutdownRequest: () => void
   ) {
     socket.on('data', (chunk: Buffer) => this.handleChunk(chunk))
     socket.on('error', () => this.dispose())
@@ -105,6 +107,7 @@ export class Connection {
       ok: true,
       protocolVersion: requested,
       pid: process.pid,
+      buildId: this.buildId,
       sessions: this.registry.list(),
     }))
   }
@@ -147,6 +150,10 @@ export class Connection {
         return this.attach(request.params.id, request.params.cols, request.params.rows)
       case 'detach':
         this.detachSession(request.params.id)
+        return null
+      case 'shutdown':
+        // Answer before going away, so the client is not left waiting.
+        setTimeout(this.onShutdownRequest, 50)
         return null
       default:
         throw new Error('Unknown control operation')

@@ -23,7 +23,7 @@ async function start(): Promise<void> {
   }
 
   const registry = new Registry(dataDir)
-  const server = new Server(socketPath, registry)
+  const server = new Server(socketPath, registry, parseArg('build-id') ?? '')
 
   for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
     process.on(signal, () => server.shutdown(0))

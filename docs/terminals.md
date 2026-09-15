@@ -293,8 +293,19 @@ The smoke tests run real code under the real Electron binary, so a broken native
 node-pty build fails them. `smoke:renderer` is the one that covers the preload
 and MessagePort path, where three of the bugs above lived.
 
-**A stale daemon serves old code.** After editing `src/daemon`, kill it:
-`pkill -f dist/daemon/main.js`. Nothing does this automatically yet.
+**A stale daemon serves old code.** The daemon outlives edits to its own source,
+so after a rebuild it keeps running the old build. This is how shells kept
+inheriting the session markers above for fifteen minutes after the stripping
+rules were fixed.
+
+In development the client stamps the daemon with the build id of the bundle it
+spawned, the daemon reports it back at handshake, and a mismatch triggers a
+shutdown and respawn. Sessions on that daemon are lost, which is why it is
+**development only**, gated on `NODE_ENV`. In production a mismatch means an app
+update replaced the bundle, and restarting there would kill the user's running
+shells; that case wants fd handoff, which is not built.
+
+If you ever need to force it: `pkill -f dist/daemon/main.js`.
 
 ---
 

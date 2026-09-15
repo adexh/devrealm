@@ -13,7 +13,8 @@ export class Server {
 
   constructor(
     private readonly socketPath: string,
-    private readonly registry: Registry
+    private readonly registry: Registry,
+    private readonly buildId: string = ''
   ) {
     this.server = net.createServer(socket => this.handleConnection(socket))
     this.registry.onChange(() => this.broadcastSessions())
@@ -46,7 +47,13 @@ export class Server {
 
   private handleConnection(socket: net.Socket): void {
     socket.setNoDelay(true)
-    const connection = new Connection(socket, this.registry, () => this.armIdleTimer())
+    const connection = new Connection(
+      socket,
+      this.registry,
+      () => this.armIdleTimer(),
+      this.buildId,
+      () => this.shutdown(0)
+    )
     this.connections.add(connection)
     socket.on('close', () => {
       this.connections.delete(connection)
