@@ -54,6 +54,7 @@ export const TERMINAL_PORT_MESSAGE = 'devrealm:terminal-port'
 export const DAEMON_SOCKET_NAME = 'term.sock'
 export const DAEMON_PIPE_NAME = '\\\\.\\pipe\\devrealm-term'
 export const DAEMON_LOCK_NAME = 'term.daemon.lock'
+export const TERMINAL_DATA_DIR = 'terminals'
 
 /** Scrollback the daemon keeps per session for reattach snapshots. */
 export const SNAPSHOT_SCROLLBACK_LINES = 5000

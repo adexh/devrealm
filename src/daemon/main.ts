@@ -1,3 +1,5 @@
+import os from 'os'
+import path from 'path'
 import { Registry } from './registry'
 import { Server } from './server'
 
@@ -13,14 +15,14 @@ function parseArg(name: string): string | undefined {
 
 async function start(): Promise<void> {
   const socketPath = parseArg('socket')
-  const dbPath = parseArg('db')
+  const dataDir = parseArg('data-dir') ?? path.join(os.homedir(), '.workspace-manager', 'terminals')
   if (!socketPath) {
     process.stderr.write('[pty-daemon] --socket=<path> is required\n')
     process.exit(2)
     return
   }
 
-  const registry = new Registry(dbPath)
+  const registry = new Registry(dataDir)
   const server = new Server(socketPath, registry)
 
   for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
