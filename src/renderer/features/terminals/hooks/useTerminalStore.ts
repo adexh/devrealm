@@ -33,6 +33,7 @@ interface TerminalState {
   focusSession: (id: string) => void
   renameSession: (id: string, title: string) => Promise<void>
   killWorkspaceSessions: (workspaceId: string) => Promise<void>
+  closeWorkspace: (workspaceId: string) => Promise<void>
   setError: (message: string | null) => void
 
   toggleRail: () => void
@@ -197,9 +198,23 @@ export const useTerminalStore = create<TerminalState>()(
         }
       },
 
+      /** Kills every shell in a workspace but stays in it, now empty. */
       killWorkspaceSessions: async (workspaceId) => {
         const doomed = get().sessions.filter(session => session.workspaceId === workspaceId)
         for (const session of doomed) await get().closeSession(session.id)
+      },
+
+      /**
+       * Closing a workspace tab: kill its shells and move somewhere else.
+       * Distinct from killWorkspaceSessions, which leaves you where you are.
+       */
+      closeWorkspace: async (workspaceId) => {
+        await get().killWorkspaceSessions(workspaceId)
+        if (get().activeWorkspaceId !== workspaceId) return
+
+        // Fall through to another workspace that still has shells, else the picker.
+        const next = get().sessions.find(session => session.workspaceId !== workspaceId)
+        get().setActiveWorkspace(next?.workspaceId ?? null)
       },
 
       setError: (message) => set({ error: message }),

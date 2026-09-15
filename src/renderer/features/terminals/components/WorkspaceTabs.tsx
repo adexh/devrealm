@@ -1,6 +1,8 @@
-import { Plus } from 'lucide-react'
+import { useState } from 'react'
+import { Plus, X } from 'lucide-react'
 import { useWorkspaceStore } from '../../../stores/workspaceStore'
 import { useTerminalStore } from '../hooks/useTerminalStore'
+import { CloseWorkspaceModal } from './CloseWorkspaceModal'
 
 /**
  * Open workspaces, the way a browser shows open tabs rather than every
@@ -15,6 +17,8 @@ export function WorkspaceTabs() {
   const sessions = useTerminalStore(state => state.sessions)
   const activeWorkspaceId = useTerminalStore(state => state.activeWorkspaceId)
   const setActiveWorkspace = useTerminalStore(state => state.setActiveWorkspace)
+  const closeWorkspace = useTerminalStore(state => state.closeWorkspace)
+  const [confirming, setConfirming] = useState<{ id: string; name: string; count: number } | null>(null)
 
   const open = workspaces
     .map(workspace => ({
@@ -25,20 +29,28 @@ export function WorkspaceTabs() {
 
   if (open.length === 0) return null
 
+  /** No shells to lose means nothing to warn about, so just close it. */
+  function requestClose(id: string, name: string, count: number) {
+    if (count === 0) {
+      void closeWorkspace(id)
+      return
+    }
+    setConfirming({ id, name, count })
+  }
+
   return (
     <div className="flex items-center gap-1 overflow-x-auto scrollbar-none min-w-0">
       {open.map(({ workspace, openCount }) => {
         const active = workspace.id === activeWorkspaceId
 
         return (
-          <button
+          <div
             key={workspace.id}
-            type="button"
             title={workspace.rootPath ?? workspace.name}
             onClick={() => setActiveWorkspace(workspace.id)}
             className={active
-              ? 'flex items-center gap-1.5 px-2.5 py-1 rounded bg-tm-3 text-tm-ink-strong text-[12px] leading-4 font-semibold border-b-2 border-tm-ok shrink-0 cursor-pointer'
-              : 'flex items-center gap-1.5 px-2.5 py-1 rounded bg-transparent text-tm-ink-soft hover:text-tm-ink-strong hover:bg-tm-1 text-[12px] leading-4 border-b-2 border-transparent shrink-0 cursor-pointer'}
+              ? 'group flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded bg-tm-3 text-tm-ink-strong text-[12px] leading-4 font-semibold border-b-2 border-tm-ok shrink-0 cursor-pointer'
+              : 'group flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded bg-transparent text-tm-ink-soft hover:text-tm-ink-strong hover:bg-tm-1 text-[12px] leading-4 border-b-2 border-transparent shrink-0 cursor-pointer'}
           >
             <span className="truncate max-w-40">{workspace.name}</span>
             {openCount > 0 && (
@@ -46,7 +58,20 @@ export function WorkspaceTabs() {
                 {openCount}
               </span>
             )}
-          </button>
+            <button
+              type="button"
+              title={`Close ${workspace.name}`}
+              onClick={event => {
+                event.stopPropagation()
+                requestClose(workspace.id, workspace.name, openCount)
+              }}
+              className={active
+                ? 'flex items-center justify-center w-4 h-4 rounded text-tm-ink-dim hover:text-tm-err shrink-0 bg-transparent border-none cursor-pointer'
+                : 'flex items-center justify-center w-4 h-4 rounded text-tm-ink-dim hover:text-tm-err shrink-0 bg-transparent border-none cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity'}
+            >
+              <X size={12} aria-hidden="true" />
+            </button>
+          </div>
         )
       })}
 
@@ -58,6 +83,18 @@ export function WorkspaceTabs() {
       >
         <Plus size={16} aria-hidden="true" />
       </button>
+
+      {confirming && (
+        <CloseWorkspaceModal
+          workspaceName={confirming.name}
+          sessionCount={confirming.count}
+          onCancel={() => setConfirming(null)}
+          onConfirm={() => {
+            void closeWorkspace(confirming.id)
+            setConfirming(null)
+          }}
+        />
+      )}
     </div>
   )
 }
