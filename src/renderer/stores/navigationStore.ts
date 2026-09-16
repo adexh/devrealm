@@ -37,6 +37,7 @@ interface NavigationState {
   setAiConfigWorkspaceId: (id: string | null) => void
   handleTabChange: (tab: Tab) => void
   navigateToAIConfig: (workspaceId: string) => void
+  navigateToTerminals: () => void
   openMarkdownEditor: (session: MarkdownEditorOpenSession) => void
   updateMarkdownEditor: (id: string, patch: Partial<Omit<MarkdownEditorSessionFields, 'id'>> | ((current: MarkdownEditorSession) => MarkdownEditorSession)) => void
   requestCloseMarkdownEditor: (id: string) => void
@@ -108,6 +109,16 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
       navHistory: [...navHistory, { tab: activeTab, selectedWorkspaceId, aiConfigWorkspaceId }],
       aiConfigWorkspaceId: workspaceId,
       activeTab: 'AI Configs',
+    })
+  },
+
+  /** Jumps to the terminals screen from elsewhere, leaving a crumb for goBack. */
+  navigateToTerminals: () => {
+    const { activeTab, selectedWorkspaceId, aiConfigWorkspaceId, navHistory } = get()
+    if (activeTab === 'Terminals') return
+    set({
+      navHistory: [...navHistory, { tab: activeTab, selectedWorkspaceId, aiConfigWorkspaceId }],
+      activeTab: 'Terminals',
     })
   },
 
