@@ -42,8 +42,20 @@ a picker of every registered workspace.
 
 ### Shortcuts
 
-`⌘1` rail, `⌘B` drawer, `⌘T` new shell, `⌥↑` / `⌥↓` cycle tabs, `/` focus the
-drawer filter, `⌘⇧T` reach the Terminals tab.
+`⌘1` rail, `⌘B` drawer, `⌘T` new shell, `⌘\` split, `⌥↑` / `⌥↓` cycle tabs, `/`
+focus the drawer filter, `Esc` leave maximized, `⌘⇧T` reach the Terminals tab.
+
+### Panes
+
+`⌘\` opens a second pane that asks what goes in it rather than spawning a shell:
+a new one in the current repo, or any running session in this workspace not
+already on screen. Launching from the repo drawer fills a waiting pane too.
+Toggling split off only unsplits the view; the shell stays in the tab bar,
+because killing a process from a layout control would be a nasty surprise.
+
+Clearing wipes the daemon's headless buffer as well as the visible one, or the
+snapshot would restore it on the next attach. Maximizing hides both drawers;
+`Esc` is intercepted only while maximized, since the shell needs it otherwise.
 
 ---
 
@@ -336,7 +348,8 @@ If you ever need to force it: `pkill -f dist/daemon/main.js`.
 - **Activity detection.** Session state is `running` or `exited`; there is no
   "working" or "needs your input", so the left rail is navigation, not a glance.
 - **Dev-server port detection.** `boundPort` exists on the type and is never set.
-- **Split panes**, `⌘\` is a placeholder button.
+- **More than two panes.** The pane list is general, but only one split is
+  offered, and panes cannot be stacked vertically.
 - **Per-tab diff, secrets injection, isolated worktrees, session replay.**
 - `detachAll()` in `bridge.ts` is defined and never called.
 
