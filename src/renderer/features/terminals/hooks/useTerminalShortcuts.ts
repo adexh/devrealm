@@ -32,7 +32,7 @@ export function useTerminalShortcuts(onNewShell: () => void): void {
       }
       if (mod && event.key === '\\') {
         event.preventDefault()
-        void toggleSplit()
+        toggleSplit()
         return
       }
       // Escape only leaves maximized; it must stay available to the shell.

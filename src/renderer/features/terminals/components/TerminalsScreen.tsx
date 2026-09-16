@@ -9,6 +9,7 @@ import { TerminalContextBar } from './TerminalContextBar'
 import { TerminalEmptyState } from './TerminalEmptyState'
 import { TerminalShortcutBar } from './TerminalShortcutBar'
 import { TerminalSurface } from './TerminalSurface'
+import { TerminalPaneChooser } from './TerminalPaneChooser'
 import { TerminalPaneDivider } from './TerminalPaneDivider'
 import { TerminalTabBar } from './TerminalTabBar'
 import { WorkspacePicker } from './WorkspacePicker'
@@ -30,6 +31,7 @@ export function TerminalsScreen() {
   const toggleDrawer = useTerminalStore(state => state.toggleDrawer)
   const paneIds = useTerminalStore(state => state.paneIds)
   const maximized = useTerminalStore(state => state.maximized)
+  const pendingPane = useTerminalStore(state => state.pendingPane)
   const splitRatio = useTerminalStore(state => state.splitRatio)
   const setSplitRatio = useTerminalStore(state => state.setSplitRatio)
   const panesRef = useRef<HTMLDivElement>(null)
@@ -43,6 +45,12 @@ export function TerminalsScreen() {
   const paneSessions = paneIds
     .map(id => sessions.find(session => session.id === id))
     .filter((session): session is NonNullable<typeof session> => Boolean(session))
+
+  // A waiting pane counts towards the layout, so the split shows up the moment
+  // you ask for it rather than when a session lands in it.
+  const splitCount = paneSessions.length + (pendingPane ? 1 : 0)
+  const paneBasis = (index: number) =>
+    splitCount < 2 ? 1 : (index === 0 ? splitRatio : 1 - splitRatio)
 
   /** Pointer x to a fraction of the pane row; NaN from a double click resets it. */
   const resizePanes = useCallback((clientX: number) => {
@@ -118,12 +126,8 @@ export function TerminalsScreen() {
                     {index > 0 && <TerminalPaneDivider onDrag={resizePanes} />}
                     <div
                       onMouseDownCapture={() => focusSession(session.id)}
-                      style={{
-                        flexBasis: paneSessions.length > 1
-                          ? `${(index === 0 ? splitRatio : 1 - splitRatio) * 100}%`
-                          : '100%',
-                      }}
-                      className={paneSessions.length > 1 && session.id === activeSessionId
+                      style={{ flexBasis: `${paneBasis(index) * 100}%` }}
+                      className={splitCount > 1 && session.id === activeSessionId
                         ? 'min-w-0 flex flex-col border-t-2 border-tm-ok'
                         : 'min-w-0 flex flex-col border-t-2 border-transparent'}
                     >
@@ -131,6 +135,18 @@ export function TerminalsScreen() {
                     </div>
                   </Fragment>
                 ))}
+
+                {pendingPane && (
+                  <>
+                    <TerminalPaneDivider onDrag={resizePanes} />
+                    <div
+                      style={{ flexBasis: `${(1 - splitRatio) * 100}%` }}
+                      className="min-w-0 flex flex-col border-t-2 border-transparent"
+                    >
+                      <TerminalPaneChooser />
+                    </div>
+                  </>
+                )}
               </div>
               <TerminalShortcutBar boundPort={activeSession.boundPort} />
             </>

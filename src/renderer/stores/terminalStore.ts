@@ -19,6 +19,8 @@ interface TerminalState {
   activeSessionId: string | null
   /** Sessions shown side by side, left to right. One entry, or two when split. */
   paneIds: string[]
+  /** A second pane exists but has no session yet, so it shows the chooser. */
+  pendingPane: boolean
   error: string | null
   ready: boolean
 
@@ -40,7 +42,8 @@ interface TerminalState {
   focusSession: (id: string) => void
   renameSession: (id: string, title: string) => Promise<void>
   clearActiveTerminal: () => Promise<void>
-  toggleSplit: () => Promise<void>
+  toggleSplit: () => void
+  choosePaneSession: (id: string) => void
   setSplitRatio: (ratio: number) => void
   toggleMaximized: () => void
   killWorkspaceSessions: (workspaceId: string) => Promise<void>
@@ -101,6 +104,7 @@ export const useTerminalStore = create<TerminalState>()(
       activeWorkspaceId: null,
       activeSessionId: null,
       paneIds: [],
+      pendingPane: false,
       error: null,
       ready: false,
 
@@ -121,6 +125,7 @@ export const useTerminalStore = create<TerminalState>()(
           activeWorkspaceId: workspaceId,
           activeSessionId: keep,
           paneIds: keep ? [keep] : [],
+          pendingPane: false,
           drawerQuery: '',
         })
       },
@@ -161,6 +166,7 @@ export const useTerminalStore = create<TerminalState>()(
             activeWorkspaceId: workspaceId,
             activeSessionId: nextActive,
             paneIds: panes.length > 0 ? panes : (nextActive ? [nextActive] : []),
+            pendingPane: get().pendingPane && panes.length === 1,
           })
         } catch (error) {
           set({ error: message(error, 'Could not reach the terminal daemon') })
@@ -178,10 +184,12 @@ export const useTerminalStore = create<TerminalState>()(
             cols: 80,
             rows: 24,
           })
+          const { pendingPane, paneIds } = get()
           set({
             activeWorkspaceId: input.workspaceId,
             activeSessionId: info.id,
-            paneIds: [info.id],
+            paneIds: pendingPane && paneIds.length === 1 ? [...paneIds, info.id] : [info.id],
+            pendingPane: false,
             error: null,
           })
           await get().refresh()
@@ -230,6 +238,7 @@ export const useTerminalStore = create<TerminalState>()(
           sessions: remaining,
           activeSessionId: nextActive,
           paneIds: panes.length > 0 ? panes : (nextActive ? [nextActive] : []),
+          pendingPane: get().pendingPane && panes.length === 1,
         })
         try {
           await terminalsIpc.closeSession(id)
@@ -265,34 +274,33 @@ export const useTerminalStore = create<TerminalState>()(
       },
 
       /**
+       * Opens a second pane without deciding what goes in it. The pane shows a
+       * chooser, because splitting to an unwanted new shell is worse than one
+       * extra click, and an existing session is often what you want beside the
+       * current one.
+       *
        * Toggling off only unsplits the view. Killing a shell from what reads as
        * a layout control would be a nasty surprise, so the session stays in the
        * tab bar.
        */
-      toggleSplit: async () => {
-        const { paneIds, activeSessionId, sessions } = get()
+      toggleSplit: () => {
+        const { paneIds, activeSessionId, pendingPane } = get()
         if (paneIds.length > 1) {
           const keep = activeSessionId && paneIds.includes(activeSessionId) ? activeSessionId : paneIds[0]
-          set({ paneIds: [keep], activeSessionId: keep })
+          set({ paneIds: [keep], activeSessionId: keep, pendingPane: false })
           return
         }
-        const active = sessions.find(session => session.id === activeSessionId)
-        if (!active) return
-        try {
-          const info = await terminalsIpc.openSession({
-            workspaceId: active.workspaceId,
-            repoId: active.repoId,
-            repoName: active.repoName,
-            title: nextTitle(sessions, active.repoName),
-            cwd: active.cwd,
-            cols: 80,
-            rows: 24,
-          })
-          set({ paneIds: [...get().paneIds, info.id], activeSessionId: info.id, error: null })
-          await get().refresh()
-        } catch (error) {
-          set({ error: message(error, 'Could not split the terminal') })
+        if (pendingPane) {
+          set({ pendingPane: false })
+          return
         }
+        if (paneIds.length === 1) set({ pendingPane: true })
+      },
+
+      choosePaneSession: (id) => {
+        const { paneIds, pendingPane } = get()
+        if (!pendingPane || paneIds.includes(id)) return
+        set({ paneIds: [...paneIds, id], pendingPane: false, activeSessionId: id })
       },
 
       setSplitRatio: (ratio) => set({ splitRatio: Math.min(0.8, Math.max(0.2, ratio)) }),

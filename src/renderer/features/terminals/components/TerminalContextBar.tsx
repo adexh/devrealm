@@ -12,7 +12,7 @@ export function TerminalContextBar({ onNewShell }: { onNewShell: () => void }) {
   const toggleDrawer = useTerminalStore(state => state.toggleDrawer)
   const toggleSplit = useTerminalStore(state => state.toggleSplit)
   const activeSessionId = useTerminalStore(state => state.activeSessionId)
-  const split = useTerminalStore(state => state.paneIds.length > 1)
+  const split = useTerminalStore(state => state.paneIds.length > 1 || state.pendingPane)
 
   // Every count is scoped to the selected workspace, like the rest of the screen.
   const scoped = sessions.filter(session => session.workspaceId === activeWorkspaceId)
@@ -69,7 +69,7 @@ export function TerminalContextBar({ onNewShell }: { onNewShell: () => void }) {
         </button>
         <button
           type="button"
-          onClick={() => void toggleSplit()}
+          onClick={toggleSplit}
           disabled={!activeSessionId}
           title={split ? 'Close the second pane' : 'Split into two panes'}
           className={split
