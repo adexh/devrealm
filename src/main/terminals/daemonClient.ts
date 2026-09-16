@@ -1,4 +1,5 @@
 import { spawn } from 'child_process'
+import { app } from 'electron'
 import fs from 'fs'
 import net from 'net'
 import os from 'os'
@@ -30,18 +31,58 @@ type RefHandler = {
 const CONNECT_TIMEOUT_MS = 5000
 const QUEUED_FRAME_LIMIT = 256
 
-/**
- * In development the daemon outlives edits to its own source, so a rebuilt
- * daemon keeps serving the old code until someone kills it by hand. That is how
- * stale env-stripping rules kept reaching shells. Comparing build ids makes the
- * restart automatic.
- *
- * Development only. In production a mismatch means an app update replaced the
- * bundle, and restarting there would kill the user's running shells; that case
- * wants fd handoff, which is not built.
- */
-const IS_DEV = process.env.NODE_ENV === 'development'
 const CONNECT_RETRY_MS = 25
+const SHUTDOWN_TIMEOUT_MS = 2000
+
+/**
+ * The daemon outlives edits to its own source, so a rebuilt daemon keeps
+ * serving the old code until someone kills it by hand. That is how stale
+ * env-stripping rules kept reaching shells. Comparing build ids makes the
+ * replacement automatic.
+ *
+ * Unpackaged builds only. In a packaged app a mismatch means an update replaced
+ * the bundle, and restarting there would kill the user's running shells; that
+ * case wants fd handoff, which is not built.
+ *
+ * The test is `app.isPackaged` rather than NODE_ENV because only `npm run dev`
+ * sets NODE_ENV. Running the same unpackaged build with `npm start` left the
+ * check switched off, so the stale daemon it exists to replace survived.
+ */
+function isReplaceableBuild(): boolean {
+  return !app.isPackaged
+}
+
+/**
+ * Newest mtime of any .js under `dir`, or 0 if there is none.
+ *
+ * The whole bundle counts, not just the entry point: `tsc -w` re-emits only
+ * what changed, so editing shellEnv.ts leaves main.js untouched. An entry-only
+ * mtime would call that bundle unchanged, and shellEnv.ts is precisely the file
+ * whose stale copy leaked the launcher's environment into shells.
+ */
+function newestMtime(dir: string): number {
+  let entries: fs.Dirent[]
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return 0
+  }
+  let newest = 0
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      newest = Math.max(newest, newestMtime(full))
+      continue
+    }
+    if (!entry.name.endsWith('.js')) continue
+    try {
+      newest = Math.max(newest, fs.statSync(full).mtimeMs)
+    } catch {
+      // Removed mid-walk by a rebuild; the next connect sees the settled tree.
+    }
+  }
+  return newest
+}
 
 /**
  * Client for the PTY daemon. Spawns it on first use, reconnects if it went
@@ -62,10 +103,16 @@ export class DaemonClient {
   private readonly pendingFrames = new Map<number, { type: number; payload: Buffer }[]>()
   private readonly eventListeners = new Set<(event: ControlEvent) => void>()
 
-  private readonly dataDir = path.join(os.homedir(), DATA_DIR_NAME)
+  /**
+   * Overridable so the smoke tests get a daemon of their own. Left pointing at
+   * the real one they would drive the daemon the developer is using, and since
+   * a build-id mismatch now replaces it, a smoke run could take down the shells
+   * they are working in.
+   */
+  private readonly dataDir = process.env.DEVREALM_DAEMON_HOME ?? path.join(os.homedir(), DATA_DIR_NAME)
   private readonly socketPath = process.platform === 'win32'
-    ? DAEMON_PIPE_NAME
-    : path.join(os.homedir(), DATA_DIR_NAME, DAEMON_SOCKET_NAME)
+    ? process.env.DEVREALM_DAEMON_PIPE ?? DAEMON_PIPE_NAME
+    : path.join(this.dataDir, DAEMON_SOCKET_NAME)
 
   onEvent(listener: (event: ControlEvent) => void): () => void {
     this.eventListeners.add(listener)
@@ -208,11 +255,8 @@ export class DaemonClient {
 
   /** Build id of the daemon bundle on disk right now. */
   private currentBuildId(): string {
-    try {
-      return String(fs.statSync(this.daemonEntry()).mtimeMs)
-    } catch {
-      return ''
-    }
+    const newest = newestMtime(path.dirname(this.daemonEntry()))
+    return newest > 0 ? String(newest) : ''
   }
 
   private daemonEntry(): string {
@@ -222,24 +266,62 @@ export class DaemonClient {
 
   /**
    * Replaces a daemon running older code than what is on disk. Sessions it
-   * owned are lost, which is acceptable in development and is why this is
-   * gated to it.
+   * owned are lost, which is acceptable for an unpackaged build and is why it
+   * is gated to one.
    */
   private async restartIfStale(): Promise<boolean> {
-    if (!IS_DEV) return false
+    if (!isReplaceableBuild()) return false
     const expected = this.currentBuildId()
     if (!expected || !this.daemonBuildId || this.daemonBuildId === expected) return false
 
-    this.write(encodeJsonFrame(FrameType.ControlRequest, 0, { op: 'shutdown', requestId: -1 }))
-    this.socket?.destroy()
-    this.socket = null
-    this.daemonBuildId = null
-
-    // Give the old daemon time to unlink its socket before taking its place.
-    await new Promise(resolve => setTimeout(resolve, 200))
+    await this.shutdownDaemon()
     this.spawnDaemon()
     await this.connectWithBackoff()
+    if (this.daemonBuildId !== expected) {
+      // Reconnected to something that is still not the build on disk. Say so
+      // rather than run on quietly: the symptom is a shell with the wrong
+      // environment, hours away from the cause.
+      process.stderr.write(
+        `[terminals] daemon reports build ${this.daemonBuildId}, expected ${expected}\n`
+      )
+    }
     return true
+  }
+
+  /**
+   * Asks the daemon to exit and waits until it has let go of the socket.
+   * Destroying the socket straight after the write dropped the request on the
+   * floor, because Node discards queued data on destroy: the old daemon stayed
+   * up holding the path, its replacement could not bind, and the backoff
+   * reconnected to the same stale daemon with nothing looking wrong.
+   */
+  private async shutdownDaemon(): Promise<void> {
+    const socket = this.socket
+    this.socket = null
+    this.daemonBuildId = null
+    if (!socket || socket.destroyed) return
+
+    await new Promise<void>(resolve => {
+      const giveUp = setTimeout(() => { socket.destroy(); resolve() }, SHUTDOWN_TIMEOUT_MS)
+      socket.once('close', () => { clearTimeout(giveUp); resolve() })
+      // end() flushes the frame before the FIN, unlike destroy().
+      socket.end(encodeJsonFrame(FrameType.ControlRequest, 0, { op: 'shutdown', requestId: -1 }))
+    })
+    await this.waitForSocketFree()
+  }
+
+  /** The replacement cannot bind until the old daemon has unlinked the socket. */
+  private async waitForSocketFree(): Promise<void> {
+    const deadline = Date.now() + SHUTDOWN_TIMEOUT_MS
+    while (Date.now() < deadline) {
+      const listening = await new Promise<boolean>(resolve => {
+        const probe = net.createConnection(this.socketPath)
+        probe.once('connect', () => { probe.destroy(); resolve(true) })
+        probe.once('error', () => { probe.destroy(); resolve(false) })
+      })
+      if (!listening) return
+      await new Promise(resolve => setTimeout(resolve, CONNECT_RETRY_MS))
+    }
   }
 
   private handshakeResolver: ((ack: HelloAck | null) => void) | null = null

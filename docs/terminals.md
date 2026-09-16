@@ -298,12 +298,31 @@ so after a rebuild it keeps running the old build. This is how shells kept
 inheriting the session markers above for fifteen minutes after the stripping
 rules were fixed.
 
-In development the client stamps the daemon with the build id of the bundle it
-spawned, the daemon reports it back at handshake, and a mismatch triggers a
-shutdown and respawn. Sessions on that daemon are lost, which is why it is
-**development only**, gated on `NODE_ENV`. In production a mismatch means an app
-update replaced the bundle, and restarting there would kill the user's running
-shells; that case wants fd handoff, which is not built.
+The client stamps the daemon with the build id of the bundle it spawned, the
+daemon reports it back at handshake, and a mismatch triggers a shutdown and
+respawn. Sessions on that daemon are lost, which is why it is gated to
+**unpackaged builds**: in a packaged app a mismatch means an update replaced the
+bundle, and restarting there would kill the user's running shells; that case
+wants fd handoff, which is not built.
+
+Three details are load-bearing, each of them a way the check quietly did nothing:
+
+- The gate is `app.isPackaged`, not `NODE_ENV`. Only `npm run dev` sets
+  `NODE_ENV`, so `npm start` on the same unpackaged build ran with the check off.
+- The build id is the newest mtime across the whole `dist/daemon` bundle, not
+  the entry point's. `tsc -w` re-emits only what changed, so editing
+  `shellEnv.ts` leaves `main.js` untouched, and that is the one file whose stale
+  copy leaks the launcher's environment into shells.
+- Shutdown is `socket.end(frame)`, not `write` then `destroy`. Node discards
+  queued data on destroy, so the request never left, the old daemon kept the
+  socket, its replacement could not bind, and the backoff reconnected to the
+  stale daemon. The client now waits for the socket to go away and warns if the
+  build id still does not match.
+
+`smoke:main` covers this: it starts a daemon claiming build id `stale` and
+asserts the client replaces it. It runs against a temp `DEVREALM_DAEMON_HOME`,
+because driving the developer's real daemon would now kill the shells they are
+working in.
 
 If you ever need to force it: `pkill -f dist/daemon/main.js`.
 
