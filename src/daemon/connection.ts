@@ -151,6 +151,9 @@ export class Connection {
       case 'detach':
         this.detachSession(request.params.id)
         return null
+      case 'clear':
+        this.registry.get(request.params.id)?.clearScrollback()
+        return null
       case 'shutdown':
         // Answer before going away, so the client is not left waiting.
         setTimeout(this.onShutdownRequest, 50)

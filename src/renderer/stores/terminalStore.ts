@@ -17,11 +17,17 @@ interface TerminalState {
   /** The workspace the whole screen is scoped to. Null means nothing picked yet. */
   activeWorkspaceId: string | null
   activeSessionId: string | null
+  /** Sessions shown side by side, left to right. One entry, or two when split. */
+  paneIds: string[]
   error: string | null
   ready: boolean
 
   railOpen: boolean
   drawerOpen: boolean
+  /** Hides both drawers to give the terminal the whole window. */
+  maximized: boolean
+  /** Width of the left pane when split, as a fraction. */
+  splitRatio: number
   drawerQuery: string
   drawerFilter: DrawerFilter
 
@@ -33,6 +39,10 @@ interface TerminalState {
   closeSession: (id: string) => Promise<void>
   focusSession: (id: string) => void
   renameSession: (id: string, title: string) => Promise<void>
+  clearActiveTerminal: () => Promise<void>
+  toggleSplit: () => Promise<void>
+  setSplitRatio: (ratio: number) => void
+  toggleMaximized: () => void
   killWorkspaceSessions: (workspaceId: string) => Promise<void>
   closeWorkspace: (workspaceId: string) => Promise<void>
   setError: (message: string | null) => void
@@ -90,11 +100,14 @@ export const useTerminalStore = create<TerminalState>()(
       sessions: [],
       activeWorkspaceId: null,
       activeSessionId: null,
+      paneIds: [],
       error: null,
       ready: false,
 
       railOpen: true,
       drawerOpen: true,
+      maximized: false,
+      splitRatio: 0.5,
       drawerQuery: '',
       drawerFilter: 'all',
 
@@ -103,9 +116,11 @@ export const useTerminalStore = create<TerminalState>()(
         const active = sessions.find(session => session.id === activeSessionId)
         // Focus follows the workspace: a session in another one is not visible
         // from here, so holding it selected would be a lie.
+        const keep = active && active.workspaceId === workspaceId ? activeSessionId : null
         set({
           activeWorkspaceId: workspaceId,
-          activeSessionId: active && active.workspaceId === workspaceId ? activeSessionId : null,
+          activeSessionId: keep,
+          paneIds: keep ? [keep] : [],
           drawerQuery: '',
         })
       },
@@ -135,13 +150,17 @@ export const useTerminalStore = create<TerminalState>()(
           const workspaceId = workspaceStillExists ? activeWorkspaceId : null
 
           const inScope = sessions.filter(session => session.workspaceId === workspaceId)
+          const nextActive = inScope.some(session => session.id === activeSessionId)
+            ? activeSessionId
+            : (inScope[inScope.length - 1]?.id ?? null)
+          const live = new Set(inScope.map(session => session.id))
+          const panes = get().paneIds.filter(id => live.has(id))
           set({
             sessions,
             error: null,
             activeWorkspaceId: workspaceId,
-            activeSessionId: inScope.some(session => session.id === activeSessionId)
-              ? activeSessionId
-              : (inScope[inScope.length - 1]?.id ?? null),
+            activeSessionId: nextActive,
+            paneIds: panes.length > 0 ? panes : (nextActive ? [nextActive] : []),
           })
         } catch (error) {
           set({ error: message(error, 'Could not reach the terminal daemon') })
@@ -159,7 +178,12 @@ export const useTerminalStore = create<TerminalState>()(
             cols: 80,
             rows: 24,
           })
-          set({ activeWorkspaceId: input.workspaceId, activeSessionId: info.id, error: null })
+          set({
+            activeWorkspaceId: input.workspaceId,
+            activeSessionId: info.id,
+            paneIds: [info.id],
+            error: null,
+          })
           await get().refresh()
         } catch (error) {
           set({ error: message(error, 'Could not start a shell') })
@@ -182,7 +206,12 @@ export const useTerminalStore = create<TerminalState>()(
           await get().openSession(input)
           return
         }
-        set({ activeWorkspaceId: newest.workspaceId, activeSessionId: newest.id, error: null })
+        set({
+          activeWorkspaceId: newest.workspaceId,
+          activeSessionId: newest.id,
+          paneIds: [newest.id],
+          error: null,
+        })
       },
 
       closeSession: async (id) => {
@@ -193,11 +222,14 @@ export const useTerminalStore = create<TerminalState>()(
         const scopeIndex = sessions
           .filter(session => session.workspaceId === activeWorkspaceId)
           .findIndex(session => session.id === id)
+        const nextActive = activeSessionId === id
+          ? (inScope[scopeIndex]?.id ?? inScope[scopeIndex - 1]?.id ?? inScope[inScope.length - 1]?.id ?? null)
+          : activeSessionId
+        const panes = get().paneIds.filter(paneId => paneId !== id)
         set({
           sessions: remaining,
-          activeSessionId: activeSessionId === id
-            ? (inScope[scopeIndex]?.id ?? inScope[scopeIndex - 1]?.id ?? inScope[inScope.length - 1]?.id ?? null)
-            : activeSessionId,
+          activeSessionId: nextActive,
+          paneIds: panes.length > 0 ? panes : (nextActive ? [nextActive] : []),
         })
         try {
           await terminalsIpc.closeSession(id)
@@ -206,7 +238,66 @@ export const useTerminalStore = create<TerminalState>()(
         }
       },
 
-      focusSession: (id) => set({ activeSessionId: id }),
+      /**
+       * Picking a session from the rail or the tab bar replaces whichever pane
+       * has focus, so a split stays split instead of collapsing on every click.
+       */
+      focusSession: (id) => {
+        const { paneIds, activeSessionId } = get()
+        if (paneIds.includes(id)) {
+          set({ activeSessionId: id })
+          return
+        }
+        const focusedIndex = Math.max(0, paneIds.indexOf(activeSessionId ?? ''))
+        const next = paneIds.length > 0 ? [...paneIds] : [id]
+        if (paneIds.length > 0) next[focusedIndex] = id
+        set({ activeSessionId: id, paneIds: next })
+      },
+
+      clearActiveTerminal: async () => {
+        const { activeSessionId } = get()
+        if (!activeSessionId) return
+        try {
+          await terminalsIpc.clearSession(activeSessionId)
+        } catch (error) {
+          set({ error: message(error, 'Could not clear the terminal') })
+        }
+      },
+
+      /**
+       * Toggling off only unsplits the view. Killing a shell from what reads as
+       * a layout control would be a nasty surprise, so the session stays in the
+       * tab bar.
+       */
+      toggleSplit: async () => {
+        const { paneIds, activeSessionId, sessions } = get()
+        if (paneIds.length > 1) {
+          const keep = activeSessionId && paneIds.includes(activeSessionId) ? activeSessionId : paneIds[0]
+          set({ paneIds: [keep], activeSessionId: keep })
+          return
+        }
+        const active = sessions.find(session => session.id === activeSessionId)
+        if (!active) return
+        try {
+          const info = await terminalsIpc.openSession({
+            workspaceId: active.workspaceId,
+            repoId: active.repoId,
+            repoName: active.repoName,
+            title: nextTitle(sessions, active.repoName),
+            cwd: active.cwd,
+            cols: 80,
+            rows: 24,
+          })
+          set({ paneIds: [...get().paneIds, info.id], activeSessionId: info.id, error: null })
+          await get().refresh()
+        } catch (error) {
+          set({ error: message(error, 'Could not split the terminal') })
+        }
+      },
+
+      setSplitRatio: (ratio) => set({ splitRatio: Math.min(0.8, Math.max(0.2, ratio)) }),
+
+      toggleMaximized: () => set({ maximized: !get().maximized }),
 
       renameSession: async (id, title) => {
         const trimmed = title.trim()
@@ -244,8 +335,8 @@ export const useTerminalStore = create<TerminalState>()(
 
       setError: (message) => set({ error: message }),
 
-      toggleRail: () => set({ railOpen: !get().railOpen }),
-      toggleDrawer: () => set({ drawerOpen: !get().drawerOpen }),
+      toggleRail: () => set({ railOpen: !get().railOpen, maximized: false }),
+      toggleDrawer: () => set({ drawerOpen: !get().drawerOpen, maximized: false }),
 
       setDrawerQuery: (query) => set({ drawerQuery: query }),
       setDrawerFilter: (filter) => set({ drawerFilter: filter }),
@@ -265,6 +356,7 @@ export const useTerminalStore = create<TerminalState>()(
         railOpen: state.railOpen,
         drawerOpen: state.drawerOpen,
         activeWorkspaceId: state.activeWorkspaceId,
+        splitRatio: state.splitRatio,
       }),
     }
   )

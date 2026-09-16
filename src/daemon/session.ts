@@ -134,6 +134,15 @@ export class Session {
     return Buffer.from(this.serializer.serialize({ scrollback: SNAPSHOT_SCROLLBACK_LINES }), 'utf8')
   }
 
+  /**
+   * Drops scrollback from the authoritative buffer as well as the client's.
+   * Clearing only the renderer would bring everything back on the next attach,
+   * because the snapshot is rebuilt from this instance.
+   */
+  clearScrollback(): void {
+    this.headless.clear()
+  }
+
   write(data: Buffer): void {
     if (this.disposed || this.info.exitCode !== null) return
     this.pty.write(data.toString('utf8'))

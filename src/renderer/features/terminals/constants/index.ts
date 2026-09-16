@@ -25,7 +25,7 @@ export type ShortcutHint = { keys: string; label: string; danger?: boolean }
 
 export const SHORTCUTS: ShortcutHint[] = [
   { keys: '⌃L', label: 'Clear' },
-  { keys: '⇧Enter', label: 'Split Tab' },
+  { keys: '⌘\\', label: 'Split' },
   { keys: '⌥↑', label: 'Prev Tab' },
   { keys: '⌥↓', label: 'Next Tab' },
   { keys: '⌘C', label: 'Interrupt', danger: true },

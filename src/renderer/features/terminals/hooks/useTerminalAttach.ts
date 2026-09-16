@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react'
 import { FlowControl } from '../../../../shared/terminalConstants'
 import { attachSession, detachSession, onSessionPort } from '../ipc/terminals'
+import { registerTerminal, unregisterTerminal } from './terminalRegistry'
 import type { XtermHandle } from '../../../components/XtermHost'
 
 type PortIn =
@@ -17,6 +18,7 @@ export function useTerminalAttach(sessionId: string, onError: (message: string) 
 
   const onReady = useCallback((handle: XtermHandle) => {
     const { terminal, fit } = handle
+    registerTerminal(sessionId, handle)
     const size = fit()
     const encoder = new TextEncoder()
     let disposed = false
@@ -70,6 +72,7 @@ export function useTerminalAttach(sessionId: string, onError: (message: string) 
     // exception during unmount tears down the tree.
     return () => {
       disposed = true
+      unregisterTerminal(sessionId)
       try { offPort() } catch { /* listener already gone */ }
       try { inputSubscription.dispose() } catch { /* terminal already disposed */ }
       try { portRef.current?.close() } catch { /* port already closed */ }

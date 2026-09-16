@@ -91,6 +91,7 @@ interface ElectronAPI {
     rename: (data: { id: string; title: string }) => Promise<void>
     attach: (data: { id: string; cols: number; rows: number }) => Promise<AttachResult>
     detach: (id: string) => Promise<void>
+    clear: (id: string) => Promise<void>
     onEvent: (cb: (event: ControlEvent) => void) => () => void
   }
   markdown: {

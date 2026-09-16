@@ -10,6 +10,9 @@ export function TerminalContextBar({ onNewShell }: { onNewShell: () => void }) {
   const drawerOpen = useTerminalStore(state => state.drawerOpen)
   const toggleRail = useTerminalStore(state => state.toggleRail)
   const toggleDrawer = useTerminalStore(state => state.toggleDrawer)
+  const toggleSplit = useTerminalStore(state => state.toggleSplit)
+  const activeSessionId = useTerminalStore(state => state.activeSessionId)
+  const split = useTerminalStore(state => state.paneIds.length > 1)
 
   // Every count is scoped to the selected workspace, like the rest of the screen.
   const scoped = sessions.filter(session => session.workspaceId === activeWorkspaceId)
@@ -66,8 +69,12 @@ export function TerminalContextBar({ onNewShell }: { onNewShell: () => void }) {
         </button>
         <button
           type="button"
-          title="Split pane"
-          className="flex items-center gap-1 px-2 py-1 bg-tm-2 text-tm-ink-dim hover:text-tm-ink-strong hover:bg-tm-3 rounded text-[12px] leading-4 transition-colors border-none cursor-pointer"
+          onClick={() => void toggleSplit()}
+          disabled={!activeSessionId}
+          title={split ? 'Close the second pane' : 'Split into two panes'}
+          className={split
+            ? 'flex items-center gap-1 px-2 py-1 bg-tm-3 text-tm-ink-strong rounded text-[12px] leading-4 transition-colors border-none cursor-pointer'
+            : 'flex items-center gap-1 px-2 py-1 bg-tm-2 text-tm-ink-dim hover:text-tm-ink-strong hover:bg-tm-3 rounded text-[12px] leading-4 transition-colors border-none cursor-pointer disabled:opacity-40'}
         >
           <Columns2 size={16} aria-hidden="true" />
           <kbd className="font-mono text-[10px] leading-[14px] px-1 rounded bg-tm-0 text-tm-ink-dim">⌘\</kbd>

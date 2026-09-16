@@ -1,4 +1,6 @@
-import { Eraser, Folder, Maximize2, Plus } from 'lucide-react'
+import { Eraser, Folder, Maximize2, Minimize2, Plus } from 'lucide-react'
+import { useTerminalStore } from '../../../stores/terminalStore'
+import { getTerminal } from '../hooks/terminalRegistry'
 import type { TerminalSession } from '../types'
 import { TerminalTab } from './TerminalTab'
 
@@ -10,6 +12,20 @@ export function TerminalTabBar({ sessions, activeSessionId, activeSession, onFoc
   onClose: (id: string) => void
   onNewTab: () => void
 }) {
+  const maximized = useTerminalStore(state => state.maximized)
+  const toggleMaximized = useTerminalStore(state => state.toggleMaximized)
+  const clearActiveTerminal = useTerminalStore(state => state.clearActiveTerminal)
+
+  /**
+   * Clears the visible buffer and the daemon's authoritative one. Clearing only
+   * here would bring everything back on the next attach, since the snapshot is
+   * rebuilt from the daemon's copy.
+   */
+  function clear() {
+    getTerminal(activeSessionId)?.terminal.clear()
+    void clearActiveTerminal()
+  }
+
   return (
     <div className="h-10 bg-tm-1 px-1 flex items-center justify-between shrink-0 select-none gap-2">
       <div className="flex items-center gap-1 overflow-x-auto min-w-0 scrollbar-none">
@@ -52,6 +68,7 @@ export function TerminalTabBar({ sessions, activeSessionId, activeSession, onFoc
         )}
         <button
           type="button"
+          onClick={clear}
           title="Clear scrollback"
           className="p-1 rounded text-tm-ink-dim hover:text-tm-ink-strong hover:bg-tm-2 transition-colors bg-transparent border-none cursor-pointer flex items-center"
         >
@@ -59,10 +76,15 @@ export function TerminalTabBar({ sessions, activeSessionId, activeSession, onFoc
         </button>
         <button
           type="button"
-          title="Maximize terminal"
-          className="p-1 rounded text-tm-ink-dim hover:text-tm-ink-strong hover:bg-tm-2 transition-colors bg-transparent border-none cursor-pointer flex items-center"
+          onClick={toggleMaximized}
+          title={maximized ? 'Restore the drawers (Esc)' : 'Maximize terminal'}
+          className={maximized
+            ? 'p-1 rounded text-tm-ink-strong bg-tm-3 transition-colors border-none cursor-pointer flex items-center'
+            : 'p-1 rounded text-tm-ink-dim hover:text-tm-ink-strong hover:bg-tm-2 transition-colors bg-transparent border-none cursor-pointer flex items-center'}
         >
-          <Maximize2 size={16} aria-hidden="true" />
+          {maximized
+            ? <Minimize2 size={16} aria-hidden="true" />
+            : <Maximize2 size={16} aria-hidden="true" />}
         </button>
       </div>
     </div>

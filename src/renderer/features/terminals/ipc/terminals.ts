@@ -25,6 +25,10 @@ export function detachSession(id: string): Promise<void> {
   return window.electronAPI.terminals.detach(id)
 }
 
+export function clearSession(id: string): Promise<void> {
+  return window.electronAPI.terminals.clear(id)
+}
+
 /**
  * Receives the live MessagePort for a session.
  *

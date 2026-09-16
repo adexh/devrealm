@@ -36,6 +36,10 @@ export function registerTerminalIpcHandlers(getWebContents: () => WebContents | 
     return attachSession(event.sender, data.id, data.cols, data.rows)
   })
 
+  ipcMain.handle('terminals:clear', async (_, id: string): Promise<void> => {
+    await daemonClient.control({ op: 'clear', params: { id } })
+  })
+
   ipcMain.handle('terminals:detach', async (_, id: string): Promise<void> => {
     detachSession(id)
     await daemonClient.control({ op: 'detach', params: { id } })

@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react'
+import { Fragment, useCallback, useEffect, useRef } from 'react'
 import { useUiStore } from '../../../stores/uiStore'
 import { useTerminalStore } from '../../../stores/terminalStore'
 import { useTerminalShortcuts } from '../hooks/useTerminalShortcuts'
@@ -9,6 +9,7 @@ import { TerminalContextBar } from './TerminalContextBar'
 import { TerminalEmptyState } from './TerminalEmptyState'
 import { TerminalShortcutBar } from './TerminalShortcutBar'
 import { TerminalSurface } from './TerminalSurface'
+import { TerminalPaneDivider } from './TerminalPaneDivider'
 import { TerminalTabBar } from './TerminalTabBar'
 import { WorkspacePicker } from './WorkspacePicker'
 
@@ -27,6 +28,11 @@ export function TerminalsScreen() {
   const closeSession = useTerminalStore(state => state.closeSession)
   const focusSession = useTerminalStore(state => state.focusSession)
   const toggleDrawer = useTerminalStore(state => state.toggleDrawer)
+  const paneIds = useTerminalStore(state => state.paneIds)
+  const maximized = useTerminalStore(state => state.maximized)
+  const splitRatio = useTerminalStore(state => state.splitRatio)
+  const setSplitRatio = useTerminalStore(state => state.setSplitRatio)
+  const panesRef = useRef<HTMLDivElement>(null)
 
   // The daemon may already hold sessions from before this window opened.
   useEffect(() => { void init() }, [init])
@@ -34,6 +40,16 @@ export function TerminalsScreen() {
   const activeSession = sessions.find(session => session.id === activeSessionId) ?? null
   // The tab bar, like everything else here, shows only the selected workspace.
   const scopedSessions = sessions.filter(session => session.workspaceId === activeWorkspaceId)
+  const paneSessions = paneIds
+    .map(id => sessions.find(session => session.id === id))
+    .filter((session): session is NonNullable<typeof session> => Boolean(session))
+
+  /** Pointer x to a fraction of the pane row; NaN from a double click resets it. */
+  const resizePanes = useCallback((clientX: number) => {
+    const rect = panesRef.current?.getBoundingClientRect()
+    if (!rect || rect.width === 0) return
+    setSplitRatio(Number.isNaN(clientX) ? 0.5 : (clientX - rect.left) / rect.width)
+  }, [setSplitRatio])
 
   const launch = useCallback((target: LaunchTarget) => {
     void openSession({
@@ -79,7 +95,7 @@ export function TerminalsScreen() {
       )}
 
       <div className="flex-1 min-h-0 flex w-full overflow-hidden">
-        {railOpen && <SessionRail onQuickSwitch={openGlobalSearch} />}
+        {railOpen && !maximized && <SessionRail onQuickSwitch={openGlobalSearch} />}
 
         <main className="flex-1 flex flex-col min-w-0 bg-tm-0 overflow-hidden">
           {!activeWorkspaceId ? (
@@ -94,9 +110,28 @@ export function TerminalsScreen() {
                 onClose={id => void closeSession(id)}
                 onNewTab={newShell}
               />
-              {/* Keyed by id: switching tabs disposes this xterm and mounts a
+              {/* Keyed by id: switching tabs disposes that xterm and mounts a
                   fresh one that replays the daemon's snapshot. */}
-              <TerminalSurface key={activeSession.id} session={activeSession} />
+              <div ref={panesRef} className="flex-1 min-h-0 flex">
+                {paneSessions.map((session, index) => (
+                  <Fragment key={session.id}>
+                    {index > 0 && <TerminalPaneDivider onDrag={resizePanes} />}
+                    <div
+                      onMouseDownCapture={() => focusSession(session.id)}
+                      style={{
+                        flexBasis: paneSessions.length > 1
+                          ? `${(index === 0 ? splitRatio : 1 - splitRatio) * 100}%`
+                          : '100%',
+                      }}
+                      className={paneSessions.length > 1 && session.id === activeSessionId
+                        ? 'min-w-0 flex flex-col border-t-2 border-tm-ok'
+                        : 'min-w-0 flex flex-col border-t-2 border-transparent'}
+                    >
+                      <TerminalSurface session={session} />
+                    </div>
+                  </Fragment>
+                ))}
+              </div>
               <TerminalShortcutBar boundPort={activeSession.boundPort} />
             </>
           ) : (
@@ -104,7 +139,7 @@ export function TerminalsScreen() {
           )}
         </main>
 
-        {drawerOpen && <RepoLauncherDrawer onLaunch={launch} />}
+        {drawerOpen && !maximized && <RepoLauncherDrawer onLaunch={launch} />}
       </div>
     </div>
   )

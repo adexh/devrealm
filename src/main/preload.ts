@@ -66,6 +66,7 @@ const api = {
     rename: (data: { id: string; title: string }) => ipcRenderer.invoke('terminals:rename', data),
     attach: (data: { id: string; cols: number; rows: number }) => ipcRenderer.invoke('terminals:attach', data),
     detach: (id: string) => ipcRenderer.invoke('terminals:detach', id),
+    clear: (id: string) => ipcRenderer.invoke('terminals:clear', id),
     onEvent: (cb: (event: unknown) => void) => {
       const handler = (_: unknown, value: unknown) => cb(value)
       ipcRenderer.on('terminals:event', handler)

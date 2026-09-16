@@ -34,6 +34,7 @@ export type ControlOp =
   | { op: 'rename'; params: { id: string; title: string } }
   | { op: 'attach'; params: { id: string; cols: number; rows: number } }
   | { op: 'detach'; params: { id: string } }
+  | { op: 'clear'; params: { id: string } }
   | { op: 'shutdown' }
 
 export type ControlRequest = ControlOp & { requestId: number }

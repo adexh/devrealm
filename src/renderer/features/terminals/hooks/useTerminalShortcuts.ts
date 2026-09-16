@@ -9,6 +9,8 @@ export function useTerminalShortcuts(onNewShell: () => void): void {
   const toggleRail = useTerminalStore(state => state.toggleRail)
   const toggleDrawer = useTerminalStore(state => state.toggleDrawer)
   const focusAdjacentSession = useTerminalStore(state => state.focusAdjacentSession)
+  const toggleSplit = useTerminalStore(state => state.toggleSplit)
+  const toggleMaximized = useTerminalStore(state => state.toggleMaximized)
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -28,6 +30,17 @@ export function useTerminalShortcuts(onNewShell: () => void): void {
         onNewShell()
         return
       }
+      if (mod && event.key === '\\') {
+        event.preventDefault()
+        void toggleSplit()
+        return
+      }
+      // Escape only leaves maximized; it must stay available to the shell.
+      if (event.key === 'Escape' && useTerminalStore.getState().maximized) {
+        event.preventDefault()
+        toggleMaximized()
+        return
+      }
       if (event.altKey && event.key === 'ArrowUp') {
         event.preventDefault()
         focusAdjacentSession(-1)
@@ -41,5 +54,5 @@ export function useTerminalShortcuts(onNewShell: () => void): void {
 
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [toggleRail, toggleDrawer, focusAdjacentSession, onNewShell])
+  }, [toggleRail, toggleDrawer, focusAdjacentSession, toggleSplit, toggleMaximized, onNewShell])
 }
