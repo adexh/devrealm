@@ -14,7 +14,10 @@ export function useTerminalShortcuts(onNewShell: () => void): void {
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      const mod = event.metaKey || event.ctrlKey
+      // Only the platform's own modifier. Accepting ctrl as well claimed Ctrl+B
+      // and Ctrl+T on macOS, which xterm has already handed to the pty, so
+      // readline moved the cursor and the drawer toggled on the same keypress.
+      const mod = window.electronAPI.platform === 'darwin' ? event.metaKey : event.ctrlKey
       if (mod && event.key === '1') {
         event.preventDefault()
         toggleRail()

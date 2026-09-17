@@ -13,6 +13,20 @@ type PortMessage =
 const openPorts = new Map<string, { port: MessagePortMain; ref: number }>()
 
 /**
+ * Bumped on every attach and detach for a session. The daemon round-trip in
+ * between is long enough for a fast tab switch, or a React remount, to detach
+ * and re-attach; without this an in-flight attach could publish a port for a ref
+ * that has already been detached, or leak its ref handler entirely.
+ */
+const attachGenerations = new Map<string, number>()
+
+function nextGeneration(sessionId: string): number {
+  const generation = (attachGenerations.get(sessionId) ?? 0) + 1
+  attachGenerations.set(sessionId, generation)
+  return generation
+}
+
+/**
  * Attaches a session and hands the renderer a dedicated MessagePort for it.
  *
  * Once the port is open, PTY bytes never touch `ipcMain` again, so terminal
@@ -29,11 +43,20 @@ export async function attachSession(
   rows: number
 ): Promise<AttachResult> {
   detachSession(sessionId)
+  const generation = nextGeneration(sessionId)
 
   const result = await daemonClient.control<AttachResult>({
     op: 'attach',
     params: { id: sessionId, cols, rows },
   })
+
+  // Superseded while the daemon was answering. Undo the attach it just made
+  // rather than wire up a pane that is no longer on screen.
+  if (attachGenerations.get(sessionId) !== generation) {
+    daemonClient.releaseRef(result.ref)
+    void daemonClient.control({ op: 'detach', params: { id: sessionId } }).catch(() => {})
+    throw new Error('Attach superseded')
+  }
 
   const { port1, port2 } = new MessageChannelMain()
   openPorts.set(sessionId, { port: port1, ref: result.ref })
@@ -62,6 +85,7 @@ export async function attachSession(
 }
 
 export function detachSession(sessionId: string): void {
+  nextGeneration(sessionId)
   const open = openPorts.get(sessionId)
   if (!open) return
   openPorts.delete(sessionId)

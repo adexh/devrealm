@@ -16,9 +16,14 @@ export function useNavigation() {
         return
       }
       if (e.metaKey && e.key === 'Escape') setSelectedWorkspaceId(null)
-      if (e.metaKey && e.shiftKey && e.key === 'd') handleTabChange('Dashboard')
-      if (e.metaKey && e.shiftKey && e.key === 'a') handleTabChange('AI Configs')
-      if (e.metaKey && e.shiftKey && e.key === 't') handleTabChange('Terminals')
+      // Shift makes event.key uppercase, so these compared against a letter
+      // that can never arrive and none of them had ever fired.
+      if (e.metaKey && e.shiftKey) {
+        const key = e.key.toLowerCase()
+        if (key === 'd') handleTabChange('Dashboard')
+        if (key === 'a') handleTabChange('AI Configs')
+        if (key === 't') handleTabChange('Terminals')
+      }
       if (e.key === 'Backspace' && !e.metaKey && !e.altKey && !e.ctrlKey) {
         const tag = (e.target as HTMLElement).tagName
         const isEditable = (e.target as HTMLElement).isContentEditable

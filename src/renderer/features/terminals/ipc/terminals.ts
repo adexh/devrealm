@@ -29,23 +29,42 @@ export function clearSession(id: string): Promise<void> {
   return window.electronAPI.terminals.clear(id)
 }
 
+const portSubscribers = new Map<string, (port: MessagePort) => void>()
+let portListenerAttached = false
+
+function deliverPort(event: MessageEvent) {
+  if (event.source !== window) return
+  const data = event.data as { type?: string; sessionId?: string } | null
+  if (!data || data.type !== TERMINAL_PORT_MESSAGE || !data.sessionId) return
+  const port = event.ports[0]
+  if (!port) return
+  const subscriber = portSubscribers.get(data.sessionId)
+  if (!subscriber) {
+    port.close()
+    return
+  }
+  subscriber(port)
+}
+
 /**
- * Receives the live MessagePort for a session.
- *
  * The port arrives via window.postMessage rather than the electronAPI bridge,
  * because contextBridge clones its arguments and a cloned MessagePort is inert.
  * Preload transfers the real one into this world; see src/main/preload.ts.
+ *
+ * Routing is by session id through a single window listener. With a split view
+ * every visible pane is attached at once, and a per-pane listener that closed
+ * ports addressed to other sessions would kill its sibling's port.
  */
-export function onSessionPort(cb: (sessionId: string, port: MessagePort) => void): () => void {
-  function handler(event: MessageEvent) {
-    if (event.source !== window) return
-    const data = event.data as { type?: string; sessionId?: string } | null
-    if (!data || data.type !== TERMINAL_PORT_MESSAGE || !data.sessionId) return
-    const port = event.ports[0]
-    if (port) cb(data.sessionId, port)
+export function onSessionPort(sessionId: string, cb: (port: MessagePort) => void): () => void {
+  portSubscribers.set(sessionId, cb)
+  if (!portListenerAttached) {
+    window.addEventListener('message', deliverPort)
+    portListenerAttached = true
   }
-  window.addEventListener('message', handler)
-  return () => window.removeEventListener('message', handler)
+  return () => {
+    // A remount of the same session registers before the old one cleans up.
+    if (portSubscribers.get(sessionId) === cb) portSubscribers.delete(sessionId)
+  }
 }
 
 export function onDaemonEvent(cb: (event: ControlEvent) => void): () => void {

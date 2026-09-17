@@ -206,8 +206,12 @@ export const useTerminalStore = create<TerminalState>()(
        */
       openRepoSession: async (input) => {
         if (!get().ready) await get().init()
-        const running = get().sessions.filter(
-          session => session.workspaceId === input.workspaceId && session.repoId === input.repoId
+        const running = get().sessions.filter(session =>
+          session.workspaceId === input.workspaceId &&
+          session.repoId === input.repoId &&
+          // An exited shell still has a tab, but reusing it would drop the user
+          // into a dead terminal instead of starting work.
+          session.exitCode === null
         )
         const newest = running[running.length - 1]
         if (!newest) {
@@ -243,7 +247,11 @@ export const useTerminalStore = create<TerminalState>()(
         try {
           await terminalsIpc.closeSession(id)
         } catch (error) {
+          // The optimistic removal above already took the tab away. If the
+          // daemon refused, the pty is still running and unreachable, so put
+          // the truth back rather than leave the user without it.
           set({ error: message(error, 'Could not close the shell') })
+          await get().refresh()
         }
       },
 
@@ -355,7 +363,7 @@ export const useTerminalStore = create<TerminalState>()(
         const index = siblings.findIndex(session => session.id === activeSessionId)
         if (index === -1) return
         const next = siblings[(index + offset + siblings.length) % siblings.length]
-        if (next) set({ activeSessionId: next.id })
+        if (next) get().focusSession(next.id)
       },
     }),
     {

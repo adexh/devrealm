@@ -200,7 +200,10 @@ export class DaemonClient {
       socket.once('connect', () => {
         socket.off('error', onError)
         this.adoptSocket(socket)
-        this.handshake().then(resolve).catch(reject)
+        this.handshake().then(resolve).catch(error => {
+          this.abandonSocket(socket)
+          reject(error)
+        })
       })
     })
   }
@@ -218,6 +221,21 @@ export class DaemonClient {
       }
     }
     throw new Error(`Could not reach the terminal daemon: ${String(lastError)}`)
+  }
+
+  /**
+   * Drops a socket that never finished its handshake. Its listeners come off
+   * first: otherwise its later `close` runs handleDisconnect and tears down
+   * whichever connection replaced it, rejecting that one's pending requests and
+   * sending onExit(-1) to every live terminal. Clearing `this.socket` also stops
+   * ensureConnected reporting a socket that never handshook as connected.
+   */
+  private abandonSocket(socket: net.Socket): void {
+    socket.removeAllListeners()
+    socket.destroy()
+    if (this.socket !== socket) return
+    this.socket = null
+    this.daemonBuildId = null
   }
 
   private adoptSocket(socket: net.Socket): void {
