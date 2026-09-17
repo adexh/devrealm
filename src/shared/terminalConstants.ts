@@ -31,14 +31,20 @@ export const FrameType = {
 
 export type FrameTypeValue = (typeof FrameType)[keyof typeof FrameType]
 
-/** Flow control, copied from VS Code's FlowControlConstants. Do not tune blind. */
+/**
+ * Flow control, with VS Code's FlowControlConstants values. Do not tune blind.
+ *
+ * Counted in bytes rather than VS Code's chars, because the two ends of this
+ * protocol see different things: the daemon holds a JS string and the renderer
+ * holds a Uint8Array. Bytes are the only unit both can agree on exactly.
+ */
 export const FlowControl = {
-  /** Unacknowledged chars before the pty is paused. */
-  HighWatermarkChars: 100000,
-  /** Unacknowledged chars the client must catch up to before the pty resumes. */
-  LowWatermarkChars: 5000,
-  /** Chars the client accumulates before sending an ack. */
-  CharCountAckSize: 5000,
+  /** Unacknowledged bytes before the pty is paused. */
+  HighWatermarkBytes: 100000,
+  /** Unacknowledged bytes the client must catch up to before the pty resumes. */
+  LowWatermarkBytes: 5000,
+  /** Bytes the client accumulates before sending an ack. */
+  ByteCountAckSize: 5000,
 } as const
 
 /** Daemon-side output batching. Our addition, not VS Code's; measure before trusting. */

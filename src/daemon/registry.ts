@@ -43,10 +43,11 @@ export class Registry {
     )
 
     this.sessions.set(session.id, session)
-    session.subscribe({
-      onData: () => { /* registry does not read output */ },
-      onExit: () => this.notify(),
-    })
+    // onExit, not subscribe: the registry wants the exit code, not the output.
+    // A permanent subscriber kept `subscribers.size` above zero forever, so the
+    // flow-control reset on last detach could never run and a shell that
+    // flooded while detached stayed paused for good.
+    session.onExit(() => this.notify())
     this.notify()
     return session
   }
@@ -74,6 +75,19 @@ export class Registry {
 
   get size(): number {
     return this.sessions.size
+  }
+
+  /**
+   * Sessions whose shell is still running. Exited ones stay listed so their
+   * last output survives until the user closes the tab, but they must not keep
+   * the daemon alive: counting them meant the idle shutdown could never fire.
+   */
+  get liveCount(): number {
+    let live = 0
+    for (const session of this.sessions.values()) {
+      if (session.info.exitCode === null) live++
+    }
+    return live
   }
 
   disposeAll(): void {

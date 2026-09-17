@@ -49,7 +49,15 @@ export class Connection {
       this.socket.destroy()
       return
     }
-    for (const frame of frames) this.handleFrame(frame.type, frame.ref, frame.payload)
+    for (const frame of frames) {
+      try {
+        this.handleFrame(frame.type, frame.ref, frame.payload)
+      } catch (error) {
+        // A malformed frame must not strand the control requests decoded
+        // alongside it in the same chunk.
+        process.stderr.write(`[pty-daemon] dropped frame type ${frame.type}: ${String(error)}\n`)
+      }
+    }
   }
 
   private handleFrame(type: number, ref: number, payload: Buffer): void {
@@ -66,10 +74,12 @@ export class Connection {
       case FrameType.Input:
         return void this.registry.get(this.attachments.get(ref)?.sessionId ?? '')?.write(payload)
       case FrameType.Resize: {
+        if (payload.length < 4) return
         const { cols, rows } = decodeResize(payload)
         return void this.sessionFor(ref)?.resize(cols, rows)
       }
       case FrameType.Ack:
+        if (payload.length < 4) return
         return void this.sessionFor(ref)?.acknowledge(payload.readUInt32LE(0))
       case FrameType.Ping:
         return this.send(encodeFrame(FrameType.Pong, 0, Buffer.alloc(0)))
@@ -120,18 +130,16 @@ export class Connection {
       return
     }
 
-    try {
-      this.respond({ requestId: request.requestId, ok: true, result: this.runControl(request) })
-    } catch (error) {
-      this.respond({
+    this.runControl(request)
+      .then(result => this.respond({ requestId: request.requestId, ok: true, result }))
+      .catch(error => this.respond({
         requestId: request.requestId,
         ok: false,
         error: error instanceof Error ? error.message : 'Control operation failed',
-      })
-    }
+      }))
   }
 
-  private runControl(request: ControlRequest): unknown {
+  private async runControl(request: ControlRequest): Promise<unknown> {
     switch (request.op) {
       case 'list':
         return this.registry.list()
@@ -163,14 +171,14 @@ export class Connection {
     }
   }
 
-  private attach(sessionId: string, cols: number, rows: number): AttachResult {
+  private async attach(sessionId: string, cols: number, rows: number): Promise<AttachResult> {
     const session = this.registry.get(sessionId)
     if (!session) throw new Error(`No such session: ${sessionId}`)
 
     this.detachSession(sessionId)
     session.resize(cols, rows)
 
-    const ref = this.nextRef++
+    const ref = this.takeRef()
     const unsubscribe = session.subscribe({
       onData: chunk => this.send(encodeFrame(FrameType.Data, ref, chunk)),
       onExit: exitCode => this.send(encodeExit(ref, exitCode)),
@@ -178,8 +186,22 @@ export class Connection {
     this.attachments.set(ref, { sessionId, unsubscribe })
 
     // Snapshot first, so the client paints correct state before live output.
-    this.send(encodeFrame(FrameType.Snapshot, ref, session.snapshot()))
+    this.send(encodeFrame(FrameType.Snapshot, ref, await session.snapshot()))
     return { ref, session: session.info }
+  }
+
+  /**
+   * Refs are a u16 on the wire, so the counter has to wrap. Skipping the ones
+   * still attached keeps a long-lived connection from handing out a ref that
+   * would silently route another session's output.
+   */
+  private takeRef(): number {
+    for (let attempt = 0; attempt < 0xffff; attempt++) {
+      const ref = this.nextRef
+      this.nextRef = this.nextRef >= 0xffff ? 1 : this.nextRef + 1
+      if (!this.attachments.has(ref)) return ref
+    }
+    throw new Error('No terminal refs available on this connection')
   }
 
   private detachSession(sessionId: string): void {

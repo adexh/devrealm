@@ -35,14 +35,14 @@ export function useTerminalAttach(sessionId: string, onError: (message: string) 
       terminal.write(bytes, () => {
         if (inReplay) return
         unacknowledged += bytes.length
-        if (unacknowledged < FlowControl.CharCountAckSize) return
+        if (unacknowledged < FlowControl.ByteCountAckSize) return
         portRef.current?.postMessage({ t: 'ack', chars: unacknowledged })
         unacknowledged = 0
       })
     }
 
-    const offPort = onSessionPort((incomingId, port) => {
-      if (incomingId !== sessionId || disposed) {
+    const offPort = onSessionPort(sessionId, port => {
+      if (disposed) {
         port.close()
         return
       }
@@ -65,6 +65,8 @@ export function useTerminalAttach(sessionId: string, onError: (message: string) 
     })
 
     attachSession(sessionId, size.cols, size.rows).catch((error: unknown) => {
+      // A fast tab switch supersedes its own attach. Expected, not a failure.
+      if (error instanceof Error && error.message === 'Attach superseded') return
       onError(error instanceof Error ? error.message : 'Could not attach to the shell')
     })
 

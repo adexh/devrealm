@@ -20,9 +20,9 @@ export class Server {
     this.registry.onChange(() => this.broadcastSessions())
   }
 
-  listen(): Promise<void> {
+  async listen(): Promise<void> {
+    await this.removeStaleSocket()
     return new Promise((resolve, reject) => {
-      this.removeStaleSocket()
       this.server.once('error', reject)
       this.server.listen(this.socketPath, () => {
         // The socket's file mode is the whole auth boundary: the daemon trusts
@@ -36,13 +36,31 @@ export class Server {
     })
   }
 
-  private removeStaleSocket(): void {
-    if (process.platform === 'win32') return
-    try {
-      fs.unlinkSync(this.socketPath)
-    } catch {
-      // Nothing there, which is the normal case.
-    }
+  /**
+   * Only removes a socket nothing is listening on. Unlinking unconditionally
+   * would let a second daemon take the path while the first keeps running,
+   * leaving an orphan holding every pty with no client able to reach it.
+   */
+  private removeStaleSocket(): Promise<void> {
+    if (process.platform === 'win32') return Promise.resolve()
+    if (!fs.existsSync(this.socketPath)) return Promise.resolve()
+
+    return new Promise(resolve => {
+      const probe = net.createConnection(this.socketPath)
+      const giveUp = setTimeout(() => { probe.destroy(); finish(false) }, 500)
+
+      function finish(alive: boolean) {
+        clearTimeout(giveUp)
+        probe.removeAllListeners()
+        probe.destroy()
+        resolve(alive)
+      }
+      probe.once('connect', () => finish(true))
+      probe.once('error', () => finish(false))
+    }).then(alive => {
+      if (alive) throw new Error(`Another daemon is already listening on ${this.socketPath}`)
+      try { fs.unlinkSync(this.socketPath) } catch { /* raced with its owner exiting */ }
+    })
   }
 
   private handleConnection(socket: net.Socket): void {
@@ -75,7 +93,7 @@ export class Server {
   private armIdleTimer(): void {
     if (this.idleTimer) clearTimeout(this.idleTimer)
     this.idleTimer = setTimeout(() => {
-      if (this.connections.size > 0 || this.registry.size > 0) {
+      if (this.connections.size > 0 || this.registry.liveCount > 0) {
         this.armIdleTimer()
         return
       }
