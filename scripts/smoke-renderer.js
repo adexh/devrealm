@@ -14,6 +14,12 @@ const os = require('os')
 const ROOT = path.resolve(__dirname, '..')
 const PRELOAD = path.join(ROOT, 'dist/main/preload.js')
 
+// Its own daemon home. Without this the test drives the developer's real
+// daemon and can trigger the stale-build replacement, killing the shells they
+// are working in.
+const HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'devrealm-renderer-smoke-'))
+process.env.DEVREALM_DAEMON_HOME = HOME
+
 const CSS = fs.readdirSync(path.join(ROOT, 'dist/renderer/assets'))
   .filter(name => name.startsWith('index-') && name.endsWith('.css'))
   .map(name => path.join(ROOT, 'dist/renderer/assets', name))[0]
@@ -72,6 +78,47 @@ async function run() {
   await api.close(info.id)
   log(true, '7 close from the renderer')
 
+  const pending = new Map()
+  window.addEventListener('message', event => {
+    if (event.source !== window) return
+    if (!event.data || event.data.type !== 'devrealm:terminal-port') return
+    pending.set(event.data.sessionId, event.ports[0])
+  })
+
+  const panes = []
+  for (const name of ['pane-left', 'pane-right']) {
+    const session = await api.open({
+      workspaceId: 'ws', repoId: 'r', repoName: name, title: name,
+      cwd: ${JSON.stringify(ROOT)}, cols: 80, rows: 24,
+    })
+    await api.attach({ id: session.id, cols: 80, rows: 24 })
+    for (let i = 0; i < 40 && !pending.has(session.id); i++) await wait(50)
+    const pane = { id: session.id, name, port: pending.get(session.id), text: '', snapshot: false }
+    if (pane.port) {
+      pane.port.onmessage = e => {
+        if (e.data.t === 'snapshot') pane.snapshot = true
+        else if (e.data.t === 'data') pane.text += dec.decode(e.data.b)
+      }
+      pane.port.start()
+    }
+    panes.push(pane)
+  }
+  log(panes.every(pane => pane.port), '8 both split panes receive a port')
+
+  await wait(1200)
+  log(panes.every(pane => pane.snapshot), '9 both split panes get a snapshot',
+      panes.map(pane => pane.name + ':' + pane.snapshot).join(' '))
+
+  for (const pane of panes) {
+    pane.port.postMessage({ t: 'input', b: new TextEncoder().encode('echo OK_' + pane.name + '\\r') })
+  }
+  await wait(2000)
+  log(panes.every(pane => pane.text.includes('OK_' + pane.name)),
+      '10 both split panes stay usable after the second attach',
+      panes.map(pane => pane.name + ':' + pane.text.includes('OK_' + pane.name)).join(' '))
+
+  for (const pane of panes) await api.close(pane.id)
+
   // The app puts its dark class on a div, not <html>, so the terminal theme
   // must be resolved from an element inside that subtree.
   const themed = document.createElement('div')
@@ -87,9 +134,9 @@ async function run() {
   const lightBg = read(plain)
   const rootBg = read(document.documentElement)
   log(darkBg && lightBg && darkBg !== lightBg,
-      '8 terminal background follows the theme', 'dark ' + darkBg + ', light ' + lightBg)
+      '11 terminal background follows the theme', 'dark ' + darkBg + ', light ' + lightBg)
   log(rootBg === lightBg,
-      '9 documentElement would have returned the light palette', 'root ' + rootBg)
+      '12 documentElement would have returned the light palette', 'root ' + rootBg)
 
   window.__done = true
 }

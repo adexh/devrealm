@@ -15,7 +15,7 @@ const path = require('path')
 const fs = require('fs')
 
 const ROOT = path.resolve(__dirname, '..')
-const { FrameDecoder, FrameType, encodeFrame, encodeJsonFrame, PROTOCOL_VERSION } = require(path.join(ROOT, 'dist/shared/terminalProtocol.js'))
+const { FrameDecoder, FrameType, encodeAck, encodeFrame, encodeJsonFrame, PROTOCOL_VERSION } = require(path.join(ROOT, 'dist/shared/node/terminalProtocol.js'))
 
 const SOCK = path.join(os.tmpdir(), `devrealm-smoke-${process.pid}.sock`)
 const DATA = path.join(os.tmpdir(), `devrealm-smoke-data-${process.pid}`)
@@ -38,7 +38,13 @@ function client() {
         else if (f.type === FrameType.ControlResponse) {
           const b = JSON.parse(f.payload.toString())
           waiters.get(b.requestId)?.(b)
-        } else if (f.type === FrameType.Data) onData.forEach(cb => cb(f.payload.toString()))
+        } else if (f.type === FrameType.Data) {
+          // Acknowledge like the renderer does. Without this the daemon's flow
+          // control correctly pauses the pty, and the test would be measuring
+          // its own missing acks rather than the daemon.
+          socket.write(encodeAck(f.ref, f.payload.length))
+          onData.forEach(cb => cb(f.payload.toString()))
+        }
         else if (f.type === FrameType.Snapshot) onSnapshot?.(f.payload.toString())
       }
     })
@@ -79,6 +85,10 @@ async function main() {
     detached: true, stdio: ['ignore', 'ignore', 'pipe'],
   })
   daemon.stderr.on('data', d => process.stdout.write(`[daemon] ${d}`))
+  // `killed` only says whether kill() was called, so it stays false for a
+  // daemon that crashed. Watching exit is what actually proves it survived.
+  let daemonExited = false
+  daemon.once('exit', () => { daemonExited = true })
   daemon.unref()
 
   for (let i = 0; i < 100 && !fs.existsSync(SOCK); i++) await wait(50)
@@ -108,7 +118,7 @@ async function main() {
   // --- client A goes away entirely, as if the app quit ---
   a.socket.destroy()
   await wait(600)
-  check('5 daemon survives its client disconnecting', !daemon.killed)
+  check('5 daemon survives its client disconnecting', !daemonExited)
 
   // --- client B: a fresh app process reattaches ---
   const b = await client()
@@ -138,11 +148,43 @@ async function main() {
   check('9 launcher session state is stripped from the shell', envOut.includes('LEAK:[][][][]'))
   check('10 ordinary variables still reach the shell', envOut.includes('KEPT:[kept]'))
 
+  // The freeze this guards against: output past the high watermark while
+  // nothing is attached used to charge flow-control debt no one could ever
+  // acknowledge, so the pty paused and never resumed. Reattaching replays a
+  // snapshot with acks suppressed, so there was no way back.
+  const big = await b.control('open', {
+    workspaceId: 'ws1', repoId: 'r1', repoName: 'flood', title: 'flood',
+    cwd: ROOT, cols: 80, rows: 24,
+  })
+  const bigId = big.result.id
+  const bigAttach = await b.control('attach', { id: bigId, cols: 80, rows: 24 })
+  await wait(900)
+  b.input(bigAttach.result.ref, "head -c 400000 /dev/zero | tr '\\0' 'x'\r")
+  await b.control('detach', { id: bigId })
+  await wait(2500)
+
+  const reattached2 = await b.control('attach', { id: bigId, cols: 80, rows: 24 })
+  let afterFlood = ''
+  b.onData(text => { afterFlood += text })
+  await wait(400)
+  b.input(reattached2.result.ref, 'echo NOT_FROZEN\r')
+  await wait(2000)
+  check('11 a shell that flooded while detached is not frozen', afterFlood.includes('NOT_FROZEN'))
+  await b.control('close', { id: bigId })
+
   const closed = await b.control('close', { id })
-  check('11 close tears the session down', closed.ok === true)
+  check('12 close tears the session down', closed.ok === true)
   b.socket.destroy()
   process.kill(daemon.pid, 'SIGTERM')
-  fs.rmSync(DATA, { recursive: true, force: true })
+  // Wait for it to go before deleting its data dir: the daemon rewrites the
+  // manifest on shutdown, and a recursive delete racing that write fails with
+  // ENOTEMPTY even with force.
+  for (let i = 0; i < 40 && !daemonExited; i++) await wait(50)
+  try {
+    fs.rmSync(DATA, { recursive: true, force: true })
+  } catch {
+    // A leftover temp dir is not worth failing a passing run over.
+  }
   console.log(failures === 0 ? '\nall checks passed' : `\n${failures} check(s) failed`)
   process.exit(failures === 0 ? 0 : 1)
 }
