@@ -1,6 +1,6 @@
 import type { IdeWindow } from '../../../../shared/ide'
 
-/** A window as the cards show it: daemon facts plus names resolved from the workspace store. */
+/** A window as the screens show it: daemon facts plus names resolved from the workspace store. */
 export type IdeWindowView = IdeWindow & {
   repoName: string | null
   folderLabel: string | null
@@ -20,4 +20,16 @@ export type IdeActionState = {
   kind: IdeActionKind
   /** The window id, or the IDE id for quit. */
   targetId: string
+}
+
+/** A window as the table shows it: the workspace becomes a column, not a heading. */
+export type IdeWindowRow = IdeWindowView & {
+  workspaceName: string
+}
+
+export type IdeSortColumn = 'window' | 'title' | 'workspace' | 'path'
+
+export type IdeSortState = {
+  column: IdeSortColumn
+  direction: 'asc' | 'desc'
 }
