@@ -1,14 +1,14 @@
 import { useState } from 'react'
 
-/** Drag handle between split panes. Reports the pointer, the parent maps it to a ratio. */
-export function TerminalPaneDivider({ onDrag }: { onDrag: (clientX: number) => void }) {
+/** Reports the pointer; the parent decides whether that is a ratio or a width. NaN means reset. */
+export function ResizeHandle({ onDrag }: { onDrag: (clientX: number) => void }) {
   const [dragging, setDragging] = useState(false)
 
   return (
     <div
       role="separator"
       aria-orientation="vertical"
-      title="Drag to resize"
+      title="Drag to resize, double click to reset"
       onPointerDown={event => {
         event.currentTarget.setPointerCapture(event.pointerId)
         setDragging(true)
@@ -20,8 +20,10 @@ export function TerminalPaneDivider({ onDrag }: { onDrag: (clientX: number) => v
       }}
       onDoubleClick={() => onDrag(Number.NaN)}
       className={dragging
-        ? 'w-1 shrink-0 cursor-col-resize bg-tm-ok/60'
-        : 'w-1 shrink-0 cursor-col-resize bg-tm-line/40 hover:bg-tm-ok/60 transition-colors'}
-    />
+        ? 'relative w-1 shrink-0 cursor-col-resize select-none touch-none bg-tm-ok/60'
+        : 'relative w-1 shrink-0 cursor-col-resize select-none touch-none bg-tm-line/40 hover:bg-tm-ok/60 transition-colors'}
+    >
+      <span className="absolute inset-y-0 -left-1.5 -right-1.5" aria-hidden="true" />
+    </div>
   )
 }

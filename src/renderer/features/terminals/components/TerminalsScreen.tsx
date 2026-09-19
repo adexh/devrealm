@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useRef } from 'react'
 import { useUiStore } from '../../../stores/uiStore'
 import { useTerminalStore } from '../../../stores/terminalStore'
 import { useTerminalShortcuts } from '../hooks/useTerminalShortcuts'
+import { DRAWER_WIDTH, RAIL_WIDTH } from '../constants'
 import type { LaunchTarget } from '../types'
 import { RepoLauncherDrawer } from './RepoLauncherDrawer'
 import { SessionRail } from './SessionRail'
@@ -10,7 +11,7 @@ import { TerminalEmptyState } from './TerminalEmptyState'
 import { TerminalShortcutBar } from './TerminalShortcutBar'
 import { TerminalSurface } from './TerminalSurface'
 import { TerminalPaneChooser } from './TerminalPaneChooser'
-import { TerminalPaneDivider } from './TerminalPaneDivider'
+import { ResizeHandle } from './ResizeHandle'
 import { TerminalTabBar } from './TerminalTabBar'
 import { WorkspacePicker } from './WorkspacePicker'
 
@@ -34,7 +35,10 @@ export function TerminalsScreen() {
   const pendingPane = useTerminalStore(state => state.pendingPane)
   const splitRatio = useTerminalStore(state => state.splitRatio)
   const setSplitRatio = useTerminalStore(state => state.setSplitRatio)
+  const setRailWidth = useTerminalStore(state => state.setRailWidth)
+  const setDrawerWidth = useTerminalStore(state => state.setDrawerWidth)
   const panesRef = useRef<HTMLDivElement>(null)
+  const columnsRef = useRef<HTMLDivElement>(null)
 
   // The daemon may already hold sessions from before this window opened.
   useEffect(() => { void init() }, [init])
@@ -51,6 +55,18 @@ export function TerminalsScreen() {
   const splitCount = paneSessions.length + (pendingPane ? 1 : 0)
   const paneBasis = (index: number) =>
     splitCount < 2 ? 1 : (index === 0 ? splitRatio : 1 - splitRatio)
+
+  const resizeRail = useCallback((clientX: number) => {
+    const rect = columnsRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setRailWidth(Number.isNaN(clientX) ? RAIL_WIDTH.default : clientX - rect.left)
+  }, [setRailWidth])
+
+  const resizeDrawer = useCallback((clientX: number) => {
+    const rect = columnsRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setDrawerWidth(Number.isNaN(clientX) ? DRAWER_WIDTH.default : rect.right - clientX)
+  }, [setDrawerWidth])
 
   /** Pointer x to a fraction of the pane row; NaN from a double click resets it. */
   const resizePanes = useCallback((clientX: number) => {
@@ -102,8 +118,13 @@ export function TerminalsScreen() {
         </div>
       )}
 
-      <div className="flex-1 min-h-0 flex w-full overflow-hidden">
-        {railOpen && !maximized && <SessionRail onQuickSwitch={openGlobalSearch} />}
+      <div ref={columnsRef} className="flex-1 min-h-0 flex w-full overflow-hidden">
+        {railOpen && !maximized && (
+          <>
+            <SessionRail onQuickSwitch={openGlobalSearch} />
+            <ResizeHandle onDrag={resizeRail} />
+          </>
+        )}
 
         <main className="flex-1 flex flex-col min-w-0 bg-tm-0 overflow-hidden">
           {!activeWorkspaceId ? (
@@ -123,7 +144,7 @@ export function TerminalsScreen() {
               <div ref={panesRef} className="flex-1 min-h-0 flex">
                 {paneSessions.map((session, index) => (
                   <Fragment key={session.id}>
-                    {index > 0 && <TerminalPaneDivider onDrag={resizePanes} />}
+                    {index > 0 && <ResizeHandle onDrag={resizePanes} />}
                     <div
                       onMouseDownCapture={() => focusSession(session.id)}
                       style={{ flexBasis: `${paneBasis(index) * 100}%` }}
@@ -138,7 +159,7 @@ export function TerminalsScreen() {
 
                 {pendingPane && (
                   <>
-                    <TerminalPaneDivider onDrag={resizePanes} />
+                    <ResizeHandle onDrag={resizePanes} />
                     <div
                       style={{ flexBasis: `${(1 - splitRatio) * 100}%` }}
                       className="min-w-0 flex flex-col border-t-2 border-transparent"
@@ -155,7 +176,12 @@ export function TerminalsScreen() {
           )}
         </main>
 
-        {drawerOpen && !maximized && <RepoLauncherDrawer onLaunch={launch} />}
+        {drawerOpen && !maximized && (
+          <>
+            <ResizeHandle onDrag={resizeDrawer} />
+            <RepoLauncherDrawer onLaunch={launch} />
+          </>
+        )}
       </div>
     </div>
   )

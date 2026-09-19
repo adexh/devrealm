@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { TerminalSessionInfo } from '../../shared/terminal'
 import { useWorkspaceStore } from './workspaceStore'
+import { DRAWER_WIDTH, RAIL_WIDTH } from '../features/terminals/constants'
 import type { DrawerFilter, SessionStat, TerminalSession } from '../features/terminals/types'
 import * as terminalsIpc from '../features/terminals/ipc/terminals'
 
@@ -25,7 +26,9 @@ interface TerminalState {
   ready: boolean
 
   railOpen: boolean
+  railWidth: number
   drawerOpen: boolean
+  drawerWidth: number
   /** Hides both drawers to give the terminal the whole window. */
   maximized: boolean
   /** Width of the left pane when split, as a fraction. */
@@ -52,6 +55,8 @@ interface TerminalState {
 
   toggleRail: () => void
   toggleDrawer: () => void
+  setRailWidth: (width: number) => void
+  setDrawerWidth: (width: number) => void
   setDrawerQuery: (query: string) => void
   setDrawerFilter: (filter: DrawerFilter) => void
   focusAdjacentSession: (offset: 1 | -1) => void
@@ -109,7 +114,9 @@ export const useTerminalStore = create<TerminalState>()(
       ready: false,
 
       railOpen: true,
+      railWidth: RAIL_WIDTH.default,
       drawerOpen: true,
+      drawerWidth: DRAWER_WIDTH.default,
       maximized: false,
       splitRatio: 0.5,
       drawerQuery: '',
@@ -313,6 +320,14 @@ export const useTerminalStore = create<TerminalState>()(
 
       setSplitRatio: (ratio) => set({ splitRatio: Math.min(0.8, Math.max(0.2, ratio)) }),
 
+      setRailWidth: (width) => set({
+        railWidth: Math.min(RAIL_WIDTH.max, Math.max(RAIL_WIDTH.min, Math.round(width))),
+      }),
+
+      setDrawerWidth: (width) => set({
+        drawerWidth: Math.min(DRAWER_WIDTH.max, Math.max(DRAWER_WIDTH.min, Math.round(width))),
+      }),
+
       toggleMaximized: () => set({ maximized: !get().maximized }),
 
       renameSession: async (id, title) => {
@@ -373,6 +388,8 @@ export const useTerminalStore = create<TerminalState>()(
         drawerOpen: state.drawerOpen,
         activeWorkspaceId: state.activeWorkspaceId,
         splitRatio: state.splitRatio,
+        railWidth: state.railWidth,
+        drawerWidth: state.drawerWidth,
       }),
     }
   )

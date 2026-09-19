@@ -44,3 +44,6 @@ export const IGNORED_DIR_NAMES = [
   'dist',
   'build',
 ]
+
+export const RAIL_WIDTH = { min: 180, max: 460, default: 256 } as const
+export const DRAWER_WIDTH = { min: 200, max: 520, default: 288 } as const

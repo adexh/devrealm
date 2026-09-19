@@ -14,6 +14,7 @@ const FILTERS: { id: DrawerFilter; label: string }[] = [
 export function RepoLauncherDrawer({ onLaunch }: { onLaunch: (target: LaunchTarget) => void }) {
   const { targets, total, openCount } = useLaunchTargets()
   const activeWorkspaceId = useTerminalStore(state => state.activeWorkspaceId)
+  const drawerWidth = useTerminalStore(state => state.drawerWidth)
   const query = useTerminalStore(state => state.drawerQuery)
   const filter = useTerminalStore(state => state.drawerFilter)
   const setDrawerQuery = useTerminalStore(state => state.setDrawerQuery)
@@ -33,7 +34,10 @@ export function RepoLauncherDrawer({ onLaunch }: { onLaunch: (target: LaunchTarg
   }, [])
 
   return (
-    <aside className="w-72 bg-tm-0 flex flex-col shrink-0 overflow-hidden border-l border-tm-line/40">
+    <aside
+      style={{ width: drawerWidth }}
+      className="bg-tm-0 flex flex-col shrink-0 overflow-hidden border-l border-tm-line/40"
+    >
       <div className="p-1 bg-tm-1 space-y-2 shrink-0">
         <div className="flex items-center justify-between gap-2 px-1 pt-1">
           <span className="flex items-center gap-2 min-w-0">

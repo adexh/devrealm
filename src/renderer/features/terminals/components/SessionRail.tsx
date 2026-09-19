@@ -10,11 +10,15 @@ export function SessionRail({ onQuickSwitch }: { onQuickSwitch: () => void }) {
   const focusSession = useTerminalStore(state => state.focusSession)
   const renameSession = useTerminalStore(state => state.renameSession)
   const killWorkspaceSessions = useTerminalStore(state => state.killWorkspaceSessions)
+  const railWidth = useTerminalStore(state => state.railWidth)
 
   const scoped = sessions.filter(session => session.workspaceId === activeWorkspaceId)
 
   return (
-    <aside className="w-64 bg-tm-0 flex flex-col shrink-0 overflow-hidden border-r border-tm-line/40">
+    <aside
+      style={{ width: railWidth }}
+      className="bg-tm-0 flex flex-col shrink-0 overflow-hidden border-r border-tm-line/40"
+    >
       <div className="h-9 px-3 bg-tm-1 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
           <Terminal size={15} className="text-tm-ink-dim" aria-hidden="true" />
