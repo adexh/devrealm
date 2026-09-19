@@ -49,6 +49,10 @@ function connect(socketPath) {
         waiters.set('hello', done)
         socket.write(encodeJsonFrame(FrameType.Hello, 0, { protocolVersion: PROTOCOL_VERSION }))
       }),
+      helloWithVersion: version => new Promise(done => {
+        waiters.set('hello', done)
+        socket.write(encodeJsonFrame(FrameType.Hello, 0, { protocolVersion: version }))
+      }),
       control: (op, params) => new Promise(done => {
         const id = ++requestId
         waiters.set(id, done)

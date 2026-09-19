@@ -71,7 +71,7 @@ This is an **Electron desktop app** for managing developer workspaces, git repos
 - **Git operations**: `simple-git` for clone/pull; `code` CLI spawned for VSCode integration.
 - **Terminal control plane**: `terminals:*` IPC handlers in `src/main/terminals/ipc.ts` cover list, open, close, rename, attach and detach only.
 - **Terminal data plane**: PTY bytes never touch `ipcMain`. `attach` opens a `MessageChannelMain` and hands the renderer one MessagePort per session; input, output, resize and flow-control acks all ride that port.
-- **Flow control**: ack-based, using VS Code's `FlowControlConstants` values (high 100000 chars, low 5000, ack every 5000). The daemon pauses the pty above the high watermark and resumes below the low one. Do not retune these without measuring.
+- **Flow control**: ack-based, using VS Code's `FlowControlConstants` values (high 100000, low 5000, ack every 5000) but counted in **bytes**, since the daemon holds a string and the renderer holds a `Uint8Array`. Debt is per attached client, not per session. The daemon pauses the pty when any client is behind and resumes once all have caught up. Do not retune these without measuring.
 
 ## Code Conventions
 

@@ -87,7 +87,7 @@ app.whenReady().then(async () => {
     cleanupHome()
     app.exit(summary())
   } catch (error) {
-    console.error('FAIL', error)
+    check(`threw: ${error instanceof Error ? error.message : String(error)}`, false)
     cleanupHome()
     app.exit(summary())
   }

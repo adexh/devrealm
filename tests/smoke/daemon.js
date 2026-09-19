@@ -126,12 +126,29 @@ async function main() {
     workspaceId: '__home__', repoId: null, repoName: 'home', title: 'home',
     cwd: '', cols: 80, rows: 24,
   })
+  const homeRef = await b.control('attach', { id: homeSession.result.id, cols: 80, rows: 24 })
+  let homeOut = ''
+  b.onData(text => { homeOut += text })
+  await wait(900)
+  b.input(homeRef.result.ref, 'pwd\r')
+  await wait(1500)
   check('12 an empty cwd opens in the home directory',
-        homeSession.result?.cwd === os.homedir(), homeSession.result?.cwd)
+        homeSession.result?.cwd === os.homedir() && homeOut.includes(os.homedir()),
+        homeSession.result?.cwd)
   await b.control('close', { id: homeSession.result.id })
 
+  const stranger = await connect(SOCK)
+  const refused = await new Promise(resolve => {
+    stranger.socket.once('close', () => resolve('closed'))
+    stranger.helloWithVersion(9999).then(ack => resolve(ack))
+  })
+  check('13 an unsupported protocol version is refused',
+        refused === 'closed' || refused?.ok === false,
+        typeof refused === 'string' ? refused : `ok=${refused?.ok}`)
+  stranger.close()
+
   const closed = await b.control('close', { id })
-  check('13 close tears the session down', closed.ok === true)
+  check('14 close tears the session down', closed.ok === true)
   b.close()
   process.kill(daemon.pid, 'SIGTERM')
   // Wait for it to go before deleting its data dir: the daemon rewrites the

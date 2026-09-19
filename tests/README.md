@@ -30,3 +30,20 @@ developer's daemon and kill the shells they are working in.
 
 Every check here exists because something broke. Before removing one, find the
 bug it was written for in `docs/terminals.md`.
+
+## Known gaps
+
+The renderer suite drives a plain page, which cannot import the bundled renderer
+modules, so two checks stand in for code they do not actually run:
+
+- The split-pane checks use their own `window` listener rather than
+  `onSessionPort`, which is where the sibling-port bug was. They prove the main
+  process delivers two usable ports, not that the renderer's router is correct.
+- The theme checks compare CSS custom properties between a `.dark` subtree and
+  the document root. They prove the tokens resolve differently, not that
+  `XtermHost` reads from the right element; it could regress to
+  `documentElement` and these would still pass.
+
+Closing either means loading the built renderer chunk into the page, which ties
+the test to hashed filenames and module side effects. Worth it only if one of
+these regresses again.

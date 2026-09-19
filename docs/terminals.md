@@ -156,13 +156,19 @@ Ack-based, using VS Code's `FlowControlConstants` verbatim. **Do not retune thes
 without measuring.**
 
 ```
-HighWatermarkChars = 100000   // pause the pty above this many unacked chars
-LowWatermarkChars  = 5000     // resume below this
-CharCountAckSize   = 5000     // the client acks every this many chars
+HighWatermarkBytes = 100000   // pause the pty above this many unacked bytes
+LowWatermarkBytes  = 5000     // resume below this
+ByteCountAckSize   = 5000     // the client acks every this many bytes
 ```
 
-The daemon counts unacknowledged chars and calls `pty.pause()` past the high
-watermark, `pty.resume()` below the low one. The renderer acks from xterm's
+VS Code's values, but counted in bytes rather than its chars. The two ends hold
+different types, a JS string in the daemon and a `Uint8Array` in the renderer,
+and bytes are the only unit they agree on exactly. Debt is tracked **per
+attached client**: one shared counter lets a fast client acknowledge on behalf
+of a slow one.
+
+The daemon counts unacknowledged bytes per client, pausing when any one client
+is behind and resuming once all have caught up. The renderer acks from xterm's
 `write` callback. **Acks are suppressed during snapshot replay**, or the daemon's
 counter desynchronises.
 
@@ -200,6 +206,10 @@ truncate it.
 | Close a tab | that one dies | gone |
 | Close a workspace tab | all in it die | gone |
 | Daemon crash or reboot | all die | gone |
+
+A session whose shell has exited keeps its tab and its scrollback, but does not
+keep the daemon alive. Quit the app leaving only exited tabs and the daemon
+shuts down after its idle period, taking them with it.
 
 The daemon exits when it has zero sessions **and** zero clients for 5 minutes.
 

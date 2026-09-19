@@ -67,10 +67,12 @@ async function run() {
   await wait(1800)
   log(text.includes('RENDERER_PATH_OK'), '5 typing reaches the shell and output returns')
 
-  port.postMessage({ t: 'resize', cols: 100, rows: 30 })
+  port.postMessage({ t: 'resize', cols: 111, rows: 37 })
   port.postMessage({ t: 'ack', chars: 10 })
-  await wait(300)
-  log(true, '6 resize and ack accepted without throwing')
+  await wait(500)
+  const resized = (await api.list()).find(s => s.id === info.id)
+  log(resized && resized.cols === 111 && resized.rows === 37,
+      '6 resize reaches the pty', resized ? resized.cols + 'x' + resized.rows : 'missing')
 
   // StrictMode remounts attach twice for one pane. The loser must resolve null
   // instead of throwing, and must not detach the winner's attachment.
@@ -81,8 +83,29 @@ async function run() {
   log(raced.filter(Boolean).length === 1, '7 a superseded attach resolves null, not an error',
       raced.map(r => (r ? 'ref ' + r.ref : 'null')).join(', '))
 
+  const winnerPort = await new Promise(resolve => {
+    const seen = []
+    const onPort = event => {
+      if (event.source !== window) return
+      if (!event.data || event.data.type !== 'devrealm:terminal-port') return
+      seen.push(event.ports[0])
+      resolve(seen[seen.length - 1])
+    }
+    window.addEventListener('message', onPort)
+    setTimeout(() => resolve(null), 1500)
+  })
+  let afterRace = ''
+  if (winnerPort) {
+    winnerPort.onmessage = e => { if (e.data.t === 'data') afterRace += dec.decode(e.data.b) }
+    winnerPort.start()
+    await wait(300)
+    winnerPort.postMessage({ t: 'input', b: new TextEncoder().encode('echo RACE_WINNER_OK\\r') })
+    await wait(1800)
+  }
+  log(afterRace.includes('RACE_WINNER_OK'), '8 the surviving attach still carries input and output')
+
   await api.close(info.id)
-  log(true, '8 close from the renderer')
+  log(true, '9 close from the renderer')
 
   const pending = new Map()
   window.addEventListener('message', event => {
@@ -109,10 +132,10 @@ async function run() {
     }
     panes.push(pane)
   }
-  log(panes.every(pane => pane.port), '9 both split panes receive a port')
+  log(panes.every(pane => pane.port), '10 both split panes receive a port')
 
   await wait(1200)
-  log(panes.every(pane => pane.snapshot), '10 both split panes get a snapshot',
+  log(panes.every(pane => pane.snapshot), '11 both split panes get a snapshot',
       panes.map(pane => pane.name + ':' + pane.snapshot).join(' '))
 
   for (const pane of panes) {
@@ -120,7 +143,7 @@ async function run() {
   }
   await wait(2000)
   log(panes.every(pane => pane.text.includes('OK_' + pane.name)),
-      '11 both split panes stay usable after the second attach',
+      '12 both split panes stay usable after the second attach',
       panes.map(pane => pane.name + ':' + pane.text.includes('OK_' + pane.name)).join(' '))
 
   for (const pane of panes) await api.close(pane.id)
@@ -140,9 +163,9 @@ async function run() {
   const lightBg = read(plain)
   const rootBg = read(document.documentElement)
   log(darkBg && lightBg && darkBg !== lightBg,
-      '12 terminal background follows the theme', 'dark ' + darkBg + ', light ' + lightBg)
+      '13 terminal background follows the theme', 'dark ' + darkBg + ', light ' + lightBg)
   log(rootBg === lightBg,
-      '13 documentElement would have returned the light palette', 'root ' + rootBg)
+      '14 documentElement would have returned the light palette', 'root ' + rootBg)
 
   window.__done = true
 }
@@ -174,11 +197,13 @@ app.whenReady().then(async () => {
 
   await win.loadFile(pagePath)
 
+  let finished = false
   for (let i = 0; i < 200; i++) {
-    const done = await win.webContents.executeJavaScript('window.__done === true').catch(() => false)
-    if (done) break
+    finished = await win.webContents.executeJavaScript('window.__done === true').catch(() => false)
+    if (finished) break
     await new Promise(r => setTimeout(r, 100))
   }
+  check('page finished within the timeout', finished)
 
   fs.rmSync(pagePath, { force: true })
   cleanupHome()
