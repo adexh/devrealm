@@ -27,7 +27,7 @@ function message(error: unknown, fallback: string): string {
 }
 
 export function IdesScreen() {
-  const { snapshot, loading, refreshing, error, refresh } = useIdeSnapshot()
+  const { snapshot, loading, refreshing, error, staleWindows, refresh } = useIdeSnapshot()
   const groups = useIdeGroups(snapshot)
   const [action, setAction] = useState<IdeActionState | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -50,15 +50,16 @@ export function IdesScreen() {
       failed = true
       setActionError(message(failure, 'The action failed'))
     }
-    // Success or not, the list must show what VS Code actually did.
+    // Success or not, the list must show what VS Code actually did, so the
+    // main process's cached window list is skipped.
     if (refreshAfter) {
       if (!failed) await wait(POST_ACTION_REFRESH_DELAY_MS)
-      await refresh()
+      await refresh({ fresh: true })
     }
     setAction(null)
   }, [refresh])
 
-  const toRef = (win: IdeWindowView): IdeWindowRef => ({ ide: win.ide, title: win.title, folderPath: win.folderPath })
+  const toRef = (win: IdeWindowView): IdeWindowRef => ({ ide: win.ide, title: win.title, titleIndex: win.titleIndex, openPath: win.openPath })
 
   const focusWindow = (win: IdeWindowView) =>
     run({ kind: 'focus', targetId: win.id }, () => focusIdeWindow(toRef(win)), false)
@@ -135,6 +136,7 @@ export function IdesScreen() {
 
       {error && <IdeNotice tone="error" text={error} actionLabel="Retry" onAction={() => { void refresh() }} />}
       {actionError && <IdeNotice tone="error" text={actionError} actionLabel="Dismiss" onAction={() => setActionError(null)} />}
+      {staleWindows && <IdeNotice tone="warn" text="The window list could not be refreshed; showing the last one that worked." actionLabel="Retry" onAction={() => { void refresh({ fresh: true }) }} />}
       {snapshot?.warnings.map((warning, index) => <IdeNotice key={`${index}:${warning}`} tone="warn" text={warning} />)}
 
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">

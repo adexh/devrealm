@@ -7,13 +7,24 @@ export type IdeWindow = {
   id: string
   ide: IdeId
   title: string
+  /**
+   * 1-based position among windows sharing this exact title, in listing order.
+   * Two folderless windows can both be called "Welcome — Code"; this is what
+   * keeps an action on the second from landing on the first.
+   */
+  titleIndex: number
   /** The folder or workspace name VS Code shows in the title, when one could be read. */
   rootName: string | null
+  /** The directory the window works in: the folder, or a `.code-workspace` file's directory. */
   folderPath: string | null
+  /** What to hand the CLI to reach this window: the folder, or the `.code-workspace` file. */
+  openPath: string | null
   repoId: string | null
   workspaceId: string | null
   /** VS Code prefixes the title with a dot when the window holds unsaved changes. */
   dirty: boolean
+  /** The root name matched more than one known folder, so no path was chosen. */
+  ambiguous: boolean
 }
 
 export type IdeProcessKind = 'main' | 'renderer' | 'extension-host' | 'gpu' | 'utility' | 'child'
@@ -28,7 +39,8 @@ export type IdeProcessGroup = {
 export type IdeUsage = {
   mainPid: number
   processCount: number
-  cpuPercent: number
+  /** Null where the platform gives no per-process CPU sample. */
+  cpuPercent: number | null
   memoryBytes: number
   groups: IdeProcessGroup[]
 }
@@ -37,7 +49,7 @@ export type IdeUsage = {
 export type IdeWindowSource = 'accessibility' | 'cli' | 'none'
 
 export type IdeCapabilities = {
-  /** Raise a window whose folder is unknown; needs macOS Accessibility. */
+  /** Raise a window whose folder is unknown; needs macOS Accessibility and working Automation. */
   focusByTitle: boolean
   close: boolean
   quit: boolean
@@ -64,8 +76,14 @@ export type IdeSnapshot = {
   durationMs: number
 }
 
+export type IdeSnapshotOptions = {
+  /** Skip the cached `--status` result, after an action that changed the window set. */
+  fresh?: boolean
+}
+
 export type IdeWindowRef = {
   ide: IdeId
   title: string
-  folderPath: string | null
+  titleIndex: number
+  openPath: string | null
 }

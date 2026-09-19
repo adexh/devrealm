@@ -13,7 +13,7 @@ export function IdeWindowCard({ win, capabilities, closeUnavailableReason, busy,
   onTerminal: () => void
 }) {
   const name = win.repoName ?? win.rootName ?? win.title
-  const canFocus = Boolean(win.folderPath) || capabilities.focusByTitle
+  const canFocus = Boolean(win.openPath) || capabilities.focusByTitle
   const canTerminal = Boolean(win.folderPath)
   const focusHint = canFocus
     ? 'Bring this window to the front'
@@ -37,7 +37,14 @@ export function IdeWindowCard({ win, capabilities, closeUnavailableReason, busy,
               UNSAVED
             </span>
           )}
-          {!win.folderPath && (
+          {win.ambiguous ? (
+            <span
+              title="More than one known folder has this name, so no path was chosen. Actions that need a path are off."
+              className="font-mono text-[10px] leading-[14px] tracking-[0.2px] font-medium px-1.5 rounded bg-tm-3 text-tm-warn-dim shrink-0"
+            >
+              AMBIGUOUS
+            </span>
+          ) : !win.folderPath && (
             <span className="font-mono text-[10px] leading-[14px] tracking-[0.2px] font-medium px-1.5 rounded bg-tm-4 text-tm-ink-dim shrink-0">
               NO FOLDER
             </span>

@@ -1,7 +1,7 @@
-import type { IdeId, IdeSnapshot, IdeWindowRef } from '../../../../shared/ide'
+import type { IdeId, IdeSnapshot, IdeSnapshotOptions, IdeWindowRef } from '../../../../shared/ide'
 
-export function fetchIdeSnapshot(): Promise<IdeSnapshot> {
-  return window.electronAPI.ides.snapshot()
+export function fetchIdeSnapshot(options?: IdeSnapshotOptions): Promise<IdeSnapshot> {
+  return window.electronAPI.ides.snapshot(options)
 }
 
 export function focusIdeWindow(ref: IdeWindowRef): Promise<void> {

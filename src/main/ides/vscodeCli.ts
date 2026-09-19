@@ -10,6 +10,19 @@ const MAC_BUNDLE_NAME = 'Visual Studio Code.app'
 const MAC_CLI_IN_BUNDLE = 'Contents/Resources/app/bin/code'
 const STATUS_TIMEOUT_MS = 30_000
 
+/**
+ * How to run the CLI without a shell. On macOS and Linux `bin/code` is a plain
+ * script that execFile can run directly. On Windows it is a `.cmd`, which Node
+ * refuses to spawn without a shell, and a shell would parse metacharacters in
+ * the folder path. The `.cmd` only sets ELECTRON_RUN_AS_NODE and runs
+ * `Code.exe resources\app\out\cli.js`, so that is done here instead.
+ */
+export type CliInvocation = {
+  command: string
+  prefixArgs: string[]
+  env: NodeJS.ProcessEnv
+}
+
 /** The `.app` path out of a running executable's command line, translocated or not. */
 export function bundleFromExecutable(command: string): string | null {
   const marker = `${MAC_BUNDLE_NAME}/Contents/MacOS/`
@@ -17,7 +30,22 @@ export function bundleFromExecutable(command: string): string | null {
   return index === -1 ? null : command.slice(0, index + MAC_BUNDLE_NAME.length)
 }
 
-function cliCandidates(mainCommand: string | null): string[] {
+/**
+ * The CLI is a script that forwards to a remote CLI whenever VSCODE_IPC_HOOK_CLI
+ * is set, which it is inside a VS Code terminal. Strip the whole family so
+ * `npm run dev` from such a terminal still talks to the desktop instance and
+ * not to one window's extension host.
+ */
+function cliEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {}
+  for (const [key, value] of Object.entries(process.env)) {
+    if (key.startsWith('VSCODE_') || key.startsWith('ELECTRON_')) continue
+    env[key] = value
+  }
+  return { ...env, ...extra }
+}
+
+function unixCandidates(mainCommand: string | null): string[] {
   if (process.platform === 'darwin') {
     const bundle = mainCommand ? bundleFromExecutable(mainCommand) : null
     return [
@@ -27,15 +55,6 @@ function cliCandidates(mainCommand: string | null): string[] {
       '/usr/local/bin/code',
       '/opt/homebrew/bin/code',
     ]
-  }
-  if (process.platform === 'win32') {
-    const editor = store.getEditorSettings().editors.find(item => item.id === 'vscode')
-    return (editor?.windowsExecutablePaths ?? []).flatMap(candidate => {
-      const exe = 'absolutePath' in candidate
-        ? candidate.absolutePath ?? ''
-        : path.join(process.env[candidate.env] ?? '', ...candidate.segments)
-      return exe ? [path.join(path.dirname(exe), 'bin', 'code.cmd')] : []
-    })
   }
   return [
     '/usr/share/code/bin/code',
@@ -55,37 +74,40 @@ function onPath(name: string): string | null {
   return null
 }
 
+/** Win32_Process quotes the executable; the command may also be `Code.exe` with no directory. */
+function windowsExeFromCommand(command: string): string | null {
+  const match = command.match(/^"?([^"]*\\Code\.exe)"?/i)
+  return match ? match[1] : null
+}
+
+function windowsInvocation(mainCommand: string | null): CliInvocation | null {
+  const editor = store.getEditorSettings().editors.find(item => item.id === 'vscode')
+  const configured = (editor?.windowsExecutablePaths ?? []).flatMap(candidate => {
+    if ('absolutePath' in candidate) return candidate.absolutePath ? [candidate.absolutePath] : []
+    return [path.join(process.env[candidate.env] ?? '', ...candidate.segments)]
+  })
+  const fromRunning = mainCommand ? windowsExeFromCommand(mainCommand) : null
+  const exe = [...(fromRunning ? [fromRunning] : []), ...configured].find(candidate => fs.existsSync(candidate))
+  if (!exe) return null
+  const cliScript = path.join(path.dirname(exe), 'resources', 'app', 'out', 'cli.js')
+  if (!fs.existsSync(cliScript)) return null
+  return { command: exe, prefixArgs: [cliScript], env: cliEnv({ ELECTRON_RUN_AS_NODE: '1' }) }
+}
+
 /**
  * The bundle of the running process is tried first so a VS Code launched from
  * a Downloads folder, or through App Translocation, is found where it runs.
  * PATH comes last: a GUI-launched app rarely has a useful one.
  */
-export function resolveVsCodeCli(mainCommand: string | null): string | null {
-  const found = cliCandidates(mainCommand).find(candidate => fs.existsSync(candidate))
-  if (found) return found
-  return onPath(process.platform === 'win32' ? 'code.cmd' : 'code')
+export function resolveVsCodeCli(mainCommand: string | null): CliInvocation | null {
+  if (process.platform === 'win32') return windowsInvocation(mainCommand)
+  const command = unixCandidates(mainCommand).find(candidate => fs.existsSync(candidate)) ?? onPath('code')
+  return command ? { command, prefixArgs: [], env: cliEnv() } : null
 }
 
-/**
- * The CLI is a shell script that forwards to a remote CLI whenever
- * VSCODE_IPC_HOOK_CLI is set, which it is inside a VS Code terminal. Strip the
- * whole family so `npm run dev` from such a terminal still talks to the desktop
- * instance and not to one window's extension host.
- */
-function cliEnv(): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = {}
-  for (const [key, value] of Object.entries(process.env)) {
-    if (key.startsWith('VSCODE_') || key.startsWith('ELECTRON_')) continue
-    env[key] = value
-  }
-  return env
-}
-
-function runCli(cli: string, args: string[], timeout: number): Promise<string> {
-  const command = process.platform === 'win32' ? 'cmd.exe' : cli
-  const fullArgs = process.platform === 'win32' ? ['/c', cli, ...args] : args
+function runCli(cli: CliInvocation, args: string[], timeout: number): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile(command, fullArgs, { env: cliEnv(), timeout, maxBuffer: 8 * 1024 * 1024, windowsHide: true }, (error, stdout, stderr) => {
+    execFile(cli.command, [...cli.prefixArgs, ...args], { env: cli.env, timeout, maxBuffer: 8 * 1024 * 1024, windowsHide: true }, (error, stdout, stderr) => {
       if (error) {
         const detail = (stderr || error.message).trim().split('\n')[0]
         reject(new Error(`VS Code CLI failed: ${detail}`))
@@ -107,11 +129,33 @@ export function parseStatusWindowTitles(output: string): string[] {
 }
 
 /** Never call this without a running instance: `--status` starts one. */
-export async function readStatusWindowTitles(cli: string): Promise<string[]> {
+export async function readStatusWindowTitles(cli: CliInvocation): Promise<string[]> {
   return parseStatusWindowTitles(await runCli(cli, ['--status'], STATUS_TIMEOUT_MS))
 }
 
+/**
+ * The target must be an existing absolute folder or `.code-workspace` file.
+ * The renderer chose it from a snapshot, but the IPC surface is reachable by
+ * any renderer code, so what reaches the CLI is checked here, not trusted.
+ */
+export function assertOpenablePath(target: string): void {
+  if (typeof target !== 'string' || !path.isAbsolute(target) || target.includes('\0')) {
+    throw new Error('Not an absolute path.')
+  }
+  if (target.startsWith('-')) throw new Error('Not a path VS Code can open.')
+  let stat: fs.Stats
+  try {
+    stat = fs.statSync(target)
+  } catch {
+    throw new Error(`"${target}" no longer exists.`)
+  }
+  if (!stat.isDirectory() && !(stat.isFile() && target.endsWith('.code-workspace'))) {
+    throw new Error('Only folders and .code-workspace files can be opened.')
+  }
+}
+
 /** VS Code reuses the window that already has the folder open, which is how focus works without Accessibility. */
-export async function openFolderWithCli(cli: string, folderPath: string): Promise<void> {
-  await runCli(cli, [folderPath], 15_000)
+export async function openWithCli(cli: CliInvocation, target: string): Promise<void> {
+  assertOpenablePath(target)
+  await runCli(cli, [target], 15_000)
 }

@@ -16,7 +16,7 @@ export function IdeUsageBreakdown({ usage }: { usage: IdeUsage }) {
                 <span className="font-mono text-[10px] text-tm-ink-dim"> ×{group.count}</span>
               </span>
               <span className="font-mono text-[10px] leading-[14px] text-tm-ink-soft shrink-0">
-                CPU {group.cpuPercent.toFixed(1)}% · {fmtSize(group.memoryBytes)}
+                {usage.cpuPercent === null ? '' : `CPU ${group.cpuPercent.toFixed(1)}% · `}{fmtSize(group.memoryBytes)}
               </span>
             </div>
             <div className="h-1 w-full rounded-full bg-tm-3 overflow-hidden">

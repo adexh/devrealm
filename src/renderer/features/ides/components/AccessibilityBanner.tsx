@@ -10,7 +10,7 @@ export function AccessibilityBanner({ onGrant, onOpenSettings, onDismiss }: {
       <ShieldCheck size={18} className="text-tm-ink-soft shrink-0" aria-hidden="true" />
       <div className="flex-1 min-w-0 text-[12px] leading-4 text-tm-ink-soft">
         <span className="font-semibold text-tm-ink">Accessibility unlocks live refresh and Close.</span>{' '}
-        Without it, windows are listed through the VS Code command line, which takes a few seconds and cannot close a window.
+        Without it, windows are listed through the VS Code command line, which takes a few seconds, leaves out windows with no folder, and cannot close a window.
         macOS asks for two things: permission to control System Events, then Accessibility for DevRealm.
       </div>
       <button
