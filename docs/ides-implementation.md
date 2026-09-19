@@ -181,13 +181,13 @@ asks again under its own name.
 
 Standard feature layout under `src/renderer/features/ides/`. `IdesScreen` owns
 the poll via `useIdeSnapshot`, groups windows with `useIdeGroups` (workspace
-store + snapshot → groups with unopened repos), and renders:
+store + snapshot → one group per workspace that has a window), and renders:
 
 ```
 IdeSummaryBar        counts, CPU, memory, captured-ago, Refresh, Quit, breakdown toggle
 IdeUsageBreakdown    per-kind table, collapsed by default
 AccessibilityBanner  macOS only, dismissible, persisted in uiStore
-IdeWorkspaceGroup    header, IdeWindowCard × n, IdeUnopenedRepoRow × n
+IdeWorkspaceGroup    header, IdeWindowCard × n
 IdeEmptyState        not installed / not running
 QuitIdeModal         confirmation
 ```

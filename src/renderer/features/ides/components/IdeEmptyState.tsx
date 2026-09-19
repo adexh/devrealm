@@ -4,7 +4,7 @@ import type { IdeSnapshot } from '../../../../shared/ide'
 import { VSCODE_INSTALL_URL } from '../constants'
 import { openExternalUrl } from '../ipc/ides'
 
-/** Shown above the groups whenever there are no windows; the groups below still offer repos to open. */
+/** Shown whenever there are no windows to list. */
 export function IdeEmptyState({ snapshot }: { snapshot: IdeSnapshot }) {
   if (!snapshot.installed) {
     return (
@@ -24,7 +24,7 @@ export function IdeEmptyState({ snapshot }: { snapshot: IdeSnapshot }) {
   if (!snapshot.running) {
     return (
       <Frame icon={<SquareCode size={26} className="text-tm-ink-dim" aria-hidden="true" />} title={`${snapshot.label} is not running`}>
-        <p>Open a repo below and its window will show up here, with everything else you open after it.</p>
+        <p>Open a repo from the Dashboard and its window will show up here, with everything else you open after it.</p>
       </Frame>
     )
   }
@@ -39,7 +39,7 @@ export function IdeEmptyState({ snapshot }: { snapshot: IdeSnapshot }) {
 
   return (
     <Frame icon={<SquareCode size={26} className="text-tm-ink-dim" aria-hidden="true" />} title="No windows open">
-      <p>{snapshot.label} is running in the background with nothing open. Pick a repo below to give it one.</p>
+      <p>{snapshot.label} is running in the background with nothing open. Open a repo from the Dashboard to give it one.</p>
     </Frame>
   )
 }

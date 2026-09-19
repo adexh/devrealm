@@ -1,11 +1,9 @@
-import { useState } from 'react'
-import { ChevronDown, ChevronRight, FolderOpen, Layers } from 'lucide-react'
+import { FolderOpen, Layers } from 'lucide-react'
 import type { IdeCapabilities } from '../../../../shared/ide'
-import type { IdeActionState, IdeUnopenedRepo, IdeWindowGroup, IdeWindowView } from '../types'
-import { IdeUnopenedRepoRow } from './IdeUnopenedRepoRow'
+import type { IdeActionState, IdeWindowGroup, IdeWindowView } from '../types'
 import { IdeWindowCard } from './IdeWindowCard'
 
-export function IdeWorkspaceGroup({ group, capabilities, closeUnavailableReason, action, onFocus, onClose, onTerminal, onOpenRepo }: {
+export function IdeWorkspaceGroup({ group, capabilities, closeUnavailableReason, action, onFocus, onClose, onTerminal }: {
   group: IdeWindowGroup
   capabilities: IdeCapabilities
   closeUnavailableReason: string | null
@@ -13,11 +11,7 @@ export function IdeWorkspaceGroup({ group, capabilities, closeUnavailableReason,
   onFocus: (win: IdeWindowView) => void
   onClose: (win: IdeWindowView) => void
   onTerminal: (win: IdeWindowView) => void
-  onOpenRepo: (target: IdeUnopenedRepo) => void
 }) {
-  // The "not open" list is the point when you are mid-task in a workspace, and
-  // noise when the workspace is idle, so it starts open only where windows are.
-  const [unopenedOpen, setUnopenedOpen] = useState(group.windows.length > 0)
   const isOther = group.workspaceId === null
 
   return (
@@ -37,50 +31,20 @@ export function IdeWorkspaceGroup({ group, capabilities, closeUnavailableReason,
         )}
       </header>
 
-      {group.windows.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-          {group.windows.map(win => (
-            <IdeWindowCard
-              key={win.id}
-              win={win}
-              capabilities={capabilities}
-              closeUnavailableReason={closeUnavailableReason}
-              busy={action?.targetId === win.id ? action.kind : null}
-              onFocus={() => onFocus(win)}
-              onClose={() => onClose(win)}
-              onTerminal={() => onTerminal(win)}
-            />
-          ))}
-        </div>
-      )}
-
-      {group.unopened.length > 0 && (
-        <div className="rounded bg-tm-1/60 border border-tm-line/30">
-          <button
-            type="button"
-            onClick={() => setUnopenedOpen(open => !open)}
-            className="w-full flex items-center gap-1.5 px-3 py-2 text-left bg-transparent border-none cursor-pointer text-tm-ink-soft hover:text-tm-ink-strong"
-          >
-            {unopenedOpen
-              ? <ChevronDown size={14} aria-hidden="true" />
-              : <ChevronRight size={14} aria-hidden="true" />}
-            <span className="text-[12px] leading-4 font-medium">Not open in {group.name}</span>
-            <span className="font-mono text-[10px] leading-[14px] px-1.5 rounded bg-tm-2 text-tm-ink-dim">{group.unopened.length}</span>
-          </button>
-          {unopenedOpen && (
-            <ul className="border-t border-tm-line/30">
-              {group.unopened.map(target => (
-                <IdeUnopenedRepoRow
-                  key={target.repo.id}
-                  target={target}
-                  busy={action?.kind === 'open' && action.targetId === target.repo.id}
-                  onOpen={() => onOpenRepo(target)}
-                />
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+        {group.windows.map(win => (
+          <IdeWindowCard
+            key={win.id}
+            win={win}
+            capabilities={capabilities}
+            closeUnavailableReason={closeUnavailableReason}
+            busy={action?.targetId === win.id ? action.kind : null}
+            onFocus={() => onFocus(win)}
+            onClose={() => onClose(win)}
+            onTerminal={() => onTerminal(win)}
+          />
+        ))}
+      </div>
     </section>
   )
 }
