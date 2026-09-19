@@ -43,17 +43,19 @@ export function IdesScreen() {
   const run = useCallback(async (state: IdeActionState, task: () => Promise<void>, refreshAfter: boolean) => {
     setAction(state)
     setActionError(null)
+    let failed = false
     try {
       await task()
-      if (refreshAfter) {
-        await wait(POST_ACTION_REFRESH_DELAY_MS)
-        await refresh()
-      }
     } catch (failure) {
+      failed = true
       setActionError(message(failure, 'The action failed'))
-    } finally {
-      setAction(null)
     }
+    // Success or not, the list must show what VS Code actually did.
+    if (refreshAfter) {
+      if (!failed) await wait(POST_ACTION_REFRESH_DELAY_MS)
+      await refresh()
+    }
+    setAction(null)
   }, [refresh])
 
   const toRef = (win: IdeWindowView): IdeWindowRef => ({ ide: win.ide, title: win.title, folderPath: win.folderPath })
@@ -88,7 +90,7 @@ export function IdesScreen() {
 
   const quit = () => {
     setQuitOpen(false)
-    void run({ kind: 'close', targetId: 'quit' }, () => quitIde('vscode'), true)
+    void run({ kind: 'quit', targetId: 'vscode' }, () => quitIde('vscode'), true)
   }
 
   const grantAccessibility = async () => {
@@ -102,6 +104,11 @@ export function IdesScreen() {
   }
 
   const showBanner = Boolean(snapshot?.accessibility.supported && !snapshot.accessibility.granted && !bannerDismissed)
+  const closeUnavailableReason = !snapshot || snapshot.capabilities.close
+    ? null
+    : snapshot.accessibility.supported
+      ? 'Grant Accessibility permission to close windows from here'
+      : 'Closing windows is only supported on macOS'
   const hasWindows = (snapshot?.windows.length ?? 0) > 0
   const showGroups = hasWindows || groups.some(group => group.unopened.length > 0)
 
@@ -128,7 +135,7 @@ export function IdesScreen() {
 
       {error && <IdeNotice tone="error" text={error} actionLabel="Retry" onAction={() => { void refresh() }} />}
       {actionError && <IdeNotice tone="error" text={actionError} actionLabel="Dismiss" onAction={() => setActionError(null)} />}
-      {snapshot?.warnings.map(warning => <IdeNotice key={warning} tone="warn" text={warning} />)}
+      {snapshot?.warnings.map((warning, index) => <IdeNotice key={`${index}:${warning}`} tone="warn" text={warning} />)}
 
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
         {loading ? (
@@ -141,6 +148,7 @@ export function IdesScreen() {
                 key={group.key}
                 group={group}
                 capabilities={snapshot.capabilities}
+                closeUnavailableReason={closeUnavailableReason}
                 action={action}
                 onFocus={win => { void focusWindow(win) }}
                 onClose={win => { void closeWindow(win) }}

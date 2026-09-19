@@ -50,7 +50,7 @@ export async function quitIde(ide: IdeId): Promise<void> {
   assertVsCode(ide)
   invalidateWindowCache()
   if (process.platform === 'darwin') {
-    await quitApp(VSCODE_BUNDLE_ID)
+    await quitApp(VSCODE_BUNDLE_ID, 'VS Code')
     return
   }
   const main = await findRunningMain()

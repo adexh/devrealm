@@ -5,9 +5,10 @@ import type { IdeActionState, IdeUnopenedRepo, IdeWindowGroup, IdeWindowView } f
 import { IdeUnopenedRepoRow } from './IdeUnopenedRepoRow'
 import { IdeWindowCard } from './IdeWindowCard'
 
-export function IdeWorkspaceGroup({ group, capabilities, action, onFocus, onClose, onTerminal, onOpenRepo }: {
+export function IdeWorkspaceGroup({ group, capabilities, closeUnavailableReason, action, onFocus, onClose, onTerminal, onOpenRepo }: {
   group: IdeWindowGroup
   capabilities: IdeCapabilities
+  closeUnavailableReason: string | null
   action: IdeActionState | null
   onFocus: (win: IdeWindowView) => void
   onClose: (win: IdeWindowView) => void
@@ -43,6 +44,7 @@ export function IdeWorkspaceGroup({ group, capabilities, action, onFocus, onClos
               key={win.id}
               win={win}
               capabilities={capabilities}
+              closeUnavailableReason={closeUnavailableReason}
               busy={action?.targetId === win.id ? action.kind : null}
               onFocus={() => onFocus(win)}
               onClose={() => onClose(win)}

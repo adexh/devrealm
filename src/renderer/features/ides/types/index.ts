@@ -22,7 +22,7 @@ export type IdeWindowGroup = {
   unopened: IdeUnopenedRepo[]
 }
 
-export type IdeActionKind = 'focus' | 'close' | 'terminal' | 'open'
+export type IdeActionKind = 'focus' | 'close' | 'terminal' | 'open' | 'quit'
 
 export type IdeActionState = {
   kind: IdeActionKind
