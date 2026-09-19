@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useRef } from 'react'
 import { useUiStore } from '../../../stores/uiStore'
 import { useTerminalStore } from '../../../stores/terminalStore'
 import { useTerminalShortcuts } from '../hooks/useTerminalShortcuts'
-import { DRAWER_WIDTH, RAIL_WIDTH } from '../constants'
+import { DRAWER_WIDTH, HOME_WORKSPACE_ID, RAIL_WIDTH } from '../constants'
 import type { LaunchTarget } from '../types'
 import { RepoLauncherDrawer } from './RepoLauncherDrawer'
 import { SessionRail } from './SessionRail'
@@ -87,7 +87,7 @@ export function TerminalsScreen() {
 
   /** New Shell: another in the current repo, else the launcher, else home. */
   const newShell = useCallback(() => {
-    if (!activeWorkspaceId) {
+    if (!activeWorkspaceId || activeWorkspaceId === HOME_WORKSPACE_ID) {
       void openHomeSession()
       return
     }
