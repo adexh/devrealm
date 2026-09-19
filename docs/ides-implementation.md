@@ -65,8 +65,14 @@ first candidate that matches a known basename, looking up:
    covers windows restored at launch that DevRealm does not track.
 
 A window whose title matches nothing keeps `folderPath: null` and lands in
-**Other windows**. Two repos with the same basename resolve to the first; this is
-a known limitation.
+**Other windows**. When two known folders share a basename, the one VS Code's
+own state lists as open wins; if that does not settle it, the window is marked
+`ambiguous` and gets no path, so no action can land on the wrong repo.
+
+Multi-root windows show the `.code-workspace` name. Those files are indexed
+from VS Code's state under that name: `folderPath` is the file's directory
+(for the terminal) and `openPath` is the file itself (for focus, since
+`code <folder>` would open a new window rather than the workspace).
 
 ### 2.3 Resource usage
 
@@ -84,16 +90,19 @@ process is the `.../Contents/MacOS/Electron` (or `code`, `Code.exe`) row without
 
 Memory is the RSS sum, which over-counts shared pages the same way Activity
 Monitor's per-process view does. CPU is the `ps` sample, which is a recent
-average, not instantaneous. Windows has no `ps`; usage is `null` there with a
-warning, and the list still works.
+average, not instantaneous. Windows has no `ps`, so the list comes from
+`Get-CimInstance Win32_Process` through PowerShell: working set and command
+line, but no CPU percentage, so `cpuPercent` is `null` there and the UI omits
+it. The Windows path is written to the documented API and has not been run on
+a Windows machine.
 
 ### 2.4 Actions
 
 | Action | macOS | Linux / Windows |
 |---|---|---|
 | Focus, folder known | `code <folder>`: VS Code reuses the window that already has the folder open and focuses it | same |
-| Focus, folder unknown | AppleScript `AXRaise` by title | unavailable |
-| Close | AppleScript: click the window's `AXCloseButton` | unavailable |
+| Focus, folder unknown | AppleScript `AXRaise` by title and position | unavailable |
+| Close | AppleScript: click the window's `AXCloseButton`, by title and position | unavailable |
 | Quit | `tell application id "com.microsoft.VSCode" to quit` | `SIGTERM` to the main pid / `taskkill /PID` without `/F` |
 | Open repo | existing `repos:open-editor` | same |
 
@@ -101,14 +110,28 @@ Closing by clicking the close button, rather than sending `⌘W` keystrokes or
 killing the renderer, means VS Code runs its own save prompt and never shows a
 crash page.
 
+Two windows can share a title ("Welcome — Code" twice). Each window carries a
+`titleIndex`, its position among same-titled windows in the order System Events
+listed them, and the action scripts address `item N of matches` rather than
+the first. Both are re-queried at click time; a window that has since changed
+title is reported as gone.
+
+Everything the renderer sends is checked in `actions.ts` before it reaches a
+process: the ref's shape, the position as a positive integer, and the path as
+an existing absolute folder or `.code-workspace` file. The CLI is always run
+with `execFile` and no shell. On Windows the `.cmd` wrapper would need one, so
+`Code.exe resources\app\out\cli.js` is run directly with
+`ELECTRON_RUN_AS_NODE=1`, which is all the wrapper does.
+
 ### 2.5 CLI resolution
 
 On macOS the CLI is `<bundle>/Contents/Resources/app/bin/code`. The bundle is
 taken from the running main process's executable path first, which also handles
 an app running from an App Translocation path, then `/Applications`,
 `~/Applications`. `code` on `PATH` is the last resort, since a GUI-launched app
-rarely has one. Linux tries `code` then the usual install paths; Windows derives
-`bin/code.cmd` from the editor settings' `Code.exe` candidates.
+rarely has one. Linux tries `code` then the usual install paths. Windows takes
+`Code.exe` from the running process or the editor settings and runs
+`resources\app\out\cli.js` under it directly (see 2.4).
 
 ## 3. Snapshot lifecycle
 
@@ -125,6 +148,18 @@ renderer                              main
 the same promise. The `--status` result is cached for 10 s so a manual refresh
 during that window returns quickly with fresh `ps` numbers and the last title
 list. Reads of `storage.json` are cached by mtime.
+
+After an action the renderer asks for `{ fresh: true }`, which never joins a
+capture already in flight (it began before the action) and skips the cache.
+Invalidation bumps a generation counter, so a `--status` that was already
+running when a window closed cannot write its stale list back afterwards.
+
+If `ps` itself fails the capture rejects, and the renderer keeps its last
+snapshot with an error and Retry. If processes list fine but no window source
+works, the snapshot comes back with `source: 'none'`; the renderer then keeps
+the previous window list, marks it stale, and still shows the live totals.
+Listing through System Events is the same Automation route Close takes, so
+`capabilities.close` is true only once that listing has actually worked.
 
 ## 4. Permissions on macOS
 
@@ -213,6 +248,6 @@ documented `System Events` API and must be exercised in the app once. Steps:
 
 - Per-window resource attribution (no public window → renderer mapping).
 - Close and title-based focus outside macOS.
-- Resource usage on Windows (`ps` is not available; a `Get-Process` path is
-  straightforward but unverified here).
+- CPU on Windows (`Win32_Process` has cumulative time only; a sampled
+  percentage needs two reads). The Windows listing itself is unverified.
 - IDEs other than VS Code. `IdeId` is a union with one member on purpose.

@@ -43,6 +43,12 @@ function quote(value: string): string {
   return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
 }
 
+/** The renderer sends the position; only a positive integer may reach the script. */
+function ordinal(titleIndex: number): string {
+  if (!Number.isInteger(titleIndex) || titleIndex < 1) throw new Error('Invalid window position.')
+  return String(titleIndex)
+}
+
 export async function listWindowTitles(bundleId: string): Promise<string[]> {
   const output = await runAppleScript(`
 tell application "System Events"
@@ -62,17 +68,19 @@ end tell`, 'System Events')
 }
 
 /**
- * Looks the window up by title at click time rather than trusting an index
+ * Looks the window up by title at click time rather than trusting a handle
  * from the last poll: titles change with the active editor, and acting on the
- * wrong window is worse than reporting that this one is gone.
+ * wrong window is worse than reporting that this one is gone. The position
+ * among same-titled windows follows the listing order System Events returns,
+ * which is what the snapshot numbered them by.
  */
-export async function raiseWindow(bundleId: string, title: string): Promise<void> {
+export async function raiseWindow(bundleId: string, title: string, titleIndex: number): Promise<void> {
   const result = await runAppleScript(`
 tell application "System Events"
   repeat with proc in (every process whose bundle identifier is ${quote(bundleId)})
     set matches to (every window of proc whose name is ${quote(title)})
-    if (count of matches) > 0 then
-      perform action "AXRaise" of item 1 of matches
+    if (count of matches) >= ${ordinal(titleIndex)} then
+      perform action "AXRaise" of item ${ordinal(titleIndex)} of matches
       set frontmost of proc to true
       return "ok"
     end if
@@ -86,13 +94,13 @@ end tell`, 'System Events')
  * Clicks the window's own close button, so VS Code runs its save prompt and
  * nothing is killed. The window is raised first so that prompt is visible.
  */
-export async function closeWindow(bundleId: string, title: string): Promise<void> {
+export async function closeWindow(bundleId: string, title: string, titleIndex: number): Promise<void> {
   const result = await runAppleScript(`
 tell application "System Events"
   repeat with proc in (every process whose bundle identifier is ${quote(bundleId)})
     set matches to (every window of proc whose name is ${quote(title)})
-    if (count of matches) > 0 then
-      set win to item 1 of matches
+    if (count of matches) >= ${ordinal(titleIndex)} then
+      set win to item ${ordinal(titleIndex)} of matches
       perform action "AXRaise" of win
       set frontmost of proc to true
       set closeButtons to (every button of win whose subrole is "AXCloseButton")

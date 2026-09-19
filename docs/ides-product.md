@@ -64,12 +64,18 @@ The fourth tab in the top bar is **IDEs**. It shows:
   CPU, total memory, and how long ago the list was captured.
 - **Window cards**, grouped by DevRealm workspace. A card shows the repo (or
   folder) name, the window title as VS Code shows it, the path, and a marker
-  when the window has unsaved changes.
+  when the window has unsaved changes. A window whose name matches more than
+  one known folder is marked ambiguous rather than pinned to the wrong repo.
 - An **Other windows** group for windows whose folder DevRealm does not track,
   and for windows with no folder at all.
 
 The list refreshes on its own while the tab is visible and pauses when it is
-not. A **Refresh** button forces one.
+not. A **Refresh** button forces one. If a refresh cannot list windows, the
+last good list stays on screen, marked as such, instead of vanishing.
+
+Without macOS Accessibility (see 5.8) the list comes from the VS Code command
+line, which does not report windows that have no folder open, so an empty
+"Welcome" window is missing from the count until the permission is granted.
 
 ### 5.2 Bring a window to the front
 
@@ -115,8 +121,8 @@ none.
 ### 5.8 Grant Accessibility (macOS)
 
 Without the permission the screen still lists windows, but does so through the
-VS Code command line, which is slower (a few seconds per refresh) and cannot
-close windows. A banner explains this and offers **Grant access**, which shows
+VS Code command line, which is slower (a few seconds per refresh), leaves out
+windows with no folder, and cannot close windows. A banner explains this and offers **Grant access**, which shows
 the system prompt, and **Open System Settings**. The banner can be dismissed
 and stays dismissed.
 
@@ -134,7 +140,9 @@ and stays dismissed.
 | Running, windows open | The full list |
 | Refresh failed | Last good list stays, with an inline error and a Retry |
 | Action failed (focus, close, quit) | Inline error on the card or strip; the list is refreshed so it reflects reality |
-| Accessibility not granted (macOS) | Banner, slower refresh, Close disabled with a reason |
+| Accessibility not granted (macOS) | Banner, slower refresh, folderless windows missing, Close disabled with a reason |
+| Accessibility granted but Automation to System Events denied | Warning naming the toggle, list falls back to the command line, Close disabled |
+| Window list failed, processes fine | Last good list stays, marked stale, with a Retry |
 
 ## 7. What we deliberately do not do
 

@@ -74,7 +74,7 @@ const api = {
     },
   },
   ides: {
-    snapshot: () => ipcRenderer.invoke('ides:snapshot'),
+    snapshot: (options?: unknown) => ipcRenderer.invoke('ides:snapshot', options),
     focusWindow: (ref: unknown) => ipcRenderer.invoke('ides:focus-window', ref),
     closeWindow: (ref: unknown) => ipcRenderer.invoke('ides:close-window', ref),
     quit: (ide: string) => ipcRenderer.invoke('ides:quit', ide),

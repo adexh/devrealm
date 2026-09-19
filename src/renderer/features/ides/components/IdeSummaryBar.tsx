@@ -47,8 +47,12 @@ export function IdeSummaryBar({ snapshot, refreshing, breakdownOpen, onRefresh, 
             <>
               <span className="text-tm-line">•</span>
               <span className="text-tm-ink-soft">{usage.processCount} processes</span>
-              <span className="text-tm-line">•</span>
-              <span className={usage.cpuPercent >= 100 ? 'text-tm-warn-dim' : 'text-tm-ink-soft'}>CPU {usage.cpuPercent.toFixed(0)}%</span>
+              {usage.cpuPercent !== null && (
+                <>
+                  <span className="text-tm-line">•</span>
+                  <span className={usage.cpuPercent >= 100 ? 'text-tm-warn-dim' : 'text-tm-ink-soft'}>CPU {usage.cpuPercent.toFixed(0)}%</span>
+                </>
+              )}
               <span className="text-tm-line">•</span>
               <span className="text-tm-ink-soft">{fmtSize(usage.memoryBytes)}</span>
             </>

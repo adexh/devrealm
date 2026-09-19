@@ -45,13 +45,21 @@ function titleChecks() {
 }
 
 function folderChecks() {
-  const { buildKnownFolderIndex, lookupFolder, parseOpenedFolders } = dist('knownFolders')
+  const { buildKnownFolderIndex, lookupFolder, parseIdeStateEntries } = dist('knownFolders')
   const workspaces = [{ id: 'w1', name: 'Alphaform', rootPath: '/Users/dev/Workspace/alphaform-workspace', createdAt: 0 }]
   const repos = [
     { id: 'r1', workspaceId: 'w1', name: 'devrealm', path: '/Users/dev/Workspace/Side Projects/devrealm', lastOpenedAt: 0, size: 0 },
     { id: 'r2', workspaceId: 'w1', name: 'backend', path: 'alphaform-backend', lastOpenedAt: 0, size: 0 },
+    { id: 'r3', workspaceId: 'w1', name: 'api (old)', path: '/Users/dev/archive/api', lastOpenedAt: 0, size: 0 },
+    { id: 'r4', workspaceId: 'w1', name: 'api', path: '/Users/dev/Workspace/api', lastOpenedAt: 0, size: 0 },
+    { id: 'r5', workspaceId: 'w1', name: 'web (old)', path: '/Users/dev/archive/web', lastOpenedAt: 0, size: 0 },
+    { id: 'r6', workspaceId: 'w1', name: 'web', path: '/Users/dev/Workspace/web', lastOpenedAt: 0, size: 0 },
   ]
-  const index = buildKnownFolderIndex(repos, workspaces, ['/Users/dev/Workspace/alphaform-workspace/cloud-iac'])
+  const index = buildKnownFolderIndex(repos, workspaces, [
+    { openPath: '/Users/dev/Workspace/alphaform-workspace/cloud-iac', rootName: 'cloud-iac' },
+    { openPath: '/Users/dev/Workspace/api', rootName: 'api' },
+    { openPath: '/Users/dev/Workspace/platform/everything.code-workspace', rootName: 'everything' },
+  ])
 
   check('folders: unknown root name resolves to nothing', lookupFolder(index, ['alphaform-customer-fe', 'Location service public …']) === null)
   let hit = lookupFolder(index, ['devrealm', 'index.ts'])
@@ -64,19 +72,26 @@ function folderChecks() {
   check('folders: basename match ignores case', hit && hit.folder.repoId === 'r1')
   hit = lookupFolder(index, ['index.ts', 'devrealm'])
   check('folders: the right-most candidate is tried first', hit && hit.rootName === 'devrealm')
+  hit = lookupFolder(index, ['api'])
+  check('folders: a basename clash is settled by what VS Code says it has open', hit && !hit.ambiguous && hit.folder.repoId === 'r4' && hit.folder.seenByIde)
+  hit = lookupFolder(index, ['web'])
+  check('folders: an unsettled clash is reported, not guessed', hit && hit.ambiguous && hit.folder === null && hit.rootName === 'web')
+  hit = lookupFolder(index, ['everything'])
+  check('folders: a .code-workspace resolves to its directory and opens by file', hit && hit.folder.path === '/Users/dev/Workspace/platform' && hit.folder.openPath.endsWith('everything.code-workspace'))
 
-  const folders = parseOpenedFolders({
+  const entries = parseIdeStateEntries({
     windowsState: {
       lastActiveWindow: { folder: 'file:///Users/dev%40host/Side%20Projects/devrealm' },
       openedWindows: [
         { folder: 'file:///Users/dev%40host/Side%20Projects/devrealm' },
         { folder: 'vscode-remote://ssh/elsewhere' },
-        { workspace: { configPath: 'file:///x.code-workspace' } },
+        { workspace: { configPath: 'file:///Users/dev/team.code-workspace' } },
       ],
     },
   })
-  check('storage: file URIs decoded once each, remote and workspace entries skipped', folders.length === 1 && folders[0] === '/Users/dev@host/Side Projects/devrealm')
-  check('storage: garbage is an empty list', parseOpenedFolders(null).length === 0 && parseOpenedFolders({}).length === 0)
+  check('storage: file URIs decoded once each, remote entries skipped', entries.length === 2 && entries[0].openPath === '/Users/dev@host/Side Projects/devrealm')
+  check('storage: workspace files kept under their display name', entries[1].rootName === 'team' && entries[1].openPath === '/Users/dev/team.code-workspace')
+  check('storage: garbage is an empty list', parseIdeStateEntries(null).length === 0 && parseIdeStateEntries({}).length === 0)
 }
 
 function statusChecks() {
@@ -86,6 +101,12 @@ function statusChecks() {
   check('status: five windows parsed from Workspace Stats', titles.length === 5, titles.join(' | '))
   check('status: a title without the app suffix is kept', titles.includes('Playwright e2e testing s… — cross-platform-e2e-tests'))
   check('status: Folder lines are not windows', titles.every(title => !title.startsWith('Folder')))
+
+  const { assertOpenablePath } = dist('vscodeCli')
+  const rejects = value => { try { assertOpenablePath(value); return false } catch { return true } }
+  check('cli: relative, flag-like and missing paths are refused', rejects('relative/dir') && rejects('--status') && rejects('/definitely/not/here') && rejects(42))
+  check('cli: an existing folder is accepted', !rejects(ROOT))
+  check('cli: a plain file is refused unless it is a .code-workspace', rejects(path.join(ROOT, 'package.json')))
 
   const bundle = bundleFromExecutable('/private/var/folders/xx/T/AppTranslocation/0000/d/Visual Studio Code.app/Contents/MacOS/Electron')
   check('cli: bundle path recovered from a translocated executable', bundle === '/private/var/folders/xx/T/AppTranslocation/0000/d/Visual Studio Code.app')
@@ -113,6 +134,17 @@ function processChecks() {
   check('ps: memory is the RSS sum in bytes', tree.usage.memoryBytes === expectedBytes)
   check('ps: cpu summed to one decimal', tree.usage.cpuPercent === 14.5, String(tree.usage.cpuPercent))
   check('ps: no tree when nothing matches', findIdeProcessTree(rows.slice(0, 1), VSCODE_PROCESS_MATCHER).main === null)
+
+  const { parseWin32ProcessJson } = dist('processes')
+  const winRows = parseWin32ProcessJson(JSON.stringify([
+    { ProcessId: 10, ParentProcessId: 1, WorkingSetSize: 2048, CommandLine: '"C:\\Users\\dev\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"', Name: 'Code.exe' },
+    { ProcessId: 11, ParentProcessId: 10, WorkingSetSize: 1024, CommandLine: null, Name: 'Code.exe' },
+  ]))
+  check('win32: process JSON parsed with null CPU and bytes to KB', winRows.length === 2 && winRows[0].cpu === null && winRows[0].rssKb === 2 && winRows[1].command === 'Code.exe')
+  const single = parseWin32ProcessJson(JSON.stringify({ ProcessId: 5, ParentProcessId: 1, WorkingSetSize: 0, CommandLine: 'x' }))
+  check('win32: a single object is one row', single.length === 1)
+  const nullCpu = findIdeProcessTree([{ pid: 1, ppid: 0, cpu: null, rssKb: 1, command: 'unrelated' }, { pid: 2, ppid: 0, cpu: null, rssKb: 3, command: '/x/Visual Studio Code.app/Contents/MacOS/Electron' }], VSCODE_PROCESS_MATCHER)
+  check('ps: cpu total is null when no row has a sample', nullCpu.usage && nullCpu.usage.cpuPercent === null && nullCpu.usage.memoryBytes === 3 * 1024)
 }
 
 async function liveChecks() {
@@ -130,10 +162,13 @@ async function liveChecks() {
   if (snapshot.source !== 'none') {
     check('live: window ids unique', new Set(snapshot.windows.map(win => win.id)).size === snapshot.windows.length)
     check('live: dedupe keeps folder ids stable', snapshot.windows.every(win => win.id.startsWith(win.folderPath ? 'folder:' : 'title:')))
+    check('live: every window is numbered among its title twins', snapshot.windows.every(win => Number.isInteger(win.titleIndex) && win.titleIndex >= 1))
     for (const win of snapshot.windows) console.log(`live: ${win.folderPath ?? '(no folder)'}  <-  ${win.title}`)
   }
   const again = await captureIdeSnapshot()
   check('live: a second capture reuses the status cache', again.source !== 'cli' || again.durationMs < snapshot.durationMs, `${again.durationMs}ms`)
+  const fresh = await captureIdeSnapshot({ fresh: true })
+  check('live: a fresh capture skips the cache', fresh.source !== 'cli' || fresh.durationMs > again.durationMs, `${fresh.durationMs}ms`)
 }
 
 app.whenReady().then(async () => {

@@ -4,8 +4,8 @@ import type { IdeProcessGroup, IdeProcessKind, IdeUsage } from '../../shared/ide
 export type ProcessRow = {
   pid: number
   ppid: number
-  /** Percent of one core, as `ps` reports it: a recent average, not an instant. */
-  cpu: number
+  /** Percent of one core as `ps` reports it, a recent average; null where the platform has no sample. */
+  cpu: number | null
   rssKb: number
   command: string
 }
@@ -37,19 +37,55 @@ export function parsePsOutput(text: string): ProcessRow[] {
   return rows
 }
 
+type Win32ProcessJson = {
+  ProcessId?: number
+  ParentProcessId?: number
+  WorkingSetSize?: number
+  CommandLine?: string | null
+  Name?: string | null
+}
+
+/** Win32_Process has no CPU percentage, only cumulative time, so cpu is null there. */
+export function parseWin32ProcessJson(text: string): ProcessRow[] {
+  const parsed = JSON.parse(text) as Win32ProcessJson | Win32ProcessJson[] | null
+  const items = Array.isArray(parsed) ? parsed : parsed ? [parsed] : []
+  return items.flatMap(item => {
+    if (typeof item.ProcessId !== 'number') return []
+    return [{
+      pid: item.ProcessId,
+      ppid: item.ParentProcessId ?? 0,
+      cpu: null,
+      rssKb: Math.round((item.WorkingSetSize ?? 0) / 1024),
+      command: item.CommandLine || item.Name || '',
+    }]
+  })
+}
+
+const PS_ARGS = ['axww', '-o', 'pid=,ppid=,pcpu=,rss=,command=']
+const POWERSHELL_ARGS = [
+  '-NoProfile', '-NonInteractive', '-Command',
+  'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,WorkingSetSize,CommandLine,Name | ConvertTo-Json -Compress',
+]
+
 /**
  * `-ww` matters: without it macOS truncates the command to the terminal width,
  * the `--type=` flag falls off and every helper looks like a main process.
  */
 export function listProcesses(): Promise<ProcessRow[]> {
-  if (process.platform === 'win32') return Promise.resolve([])
+  const win = process.platform === 'win32'
+  const command = win ? 'powershell.exe' : 'ps'
+  const args = win ? POWERSHELL_ARGS : PS_ARGS
   return new Promise((resolve, reject) => {
-    execFile('ps', ['axww', '-o', 'pid=,ppid=,pcpu=,rss=,command='], { maxBuffer: 32 * 1024 * 1024 }, (error, stdout) => {
+    execFile(command, args, { maxBuffer: 64 * 1024 * 1024, windowsHide: true }, (error, stdout) => {
       if (error) {
         reject(new Error(`Could not list processes: ${error.message}`))
         return
       }
-      resolve(parsePsOutput(stdout))
+      try {
+        resolve(win ? parseWin32ProcessJson(stdout) : parsePsOutput(stdout))
+      } catch (parseError) {
+        reject(new Error(`Could not read the process list: ${parseError instanceof Error ? parseError.message : String(parseError)}`))
+      }
     })
   })
 }
@@ -72,17 +108,20 @@ export function findIdeProcessTree(rows: ProcessRow[], matcher: IdeProcessMatche
   }
 
   const byKind = new Map<IdeProcessKind, IdeProcessGroup>()
+  let cpuKnown = false
   const add = (kind: IdeProcessKind, row: ProcessRow) => {
     const group = byKind.get(kind) ?? { kind, count: 0, cpuPercent: 0, memoryBytes: 0 }
     group.count += 1
-    group.cpuPercent += row.cpu
+    if (row.cpu !== null) {
+      cpuKnown = true
+      group.cpuPercent += row.cpu
+    }
     group.memoryBytes += row.rssKb * 1024
     byKind.set(kind, group)
   }
 
-  const seen = new Set<number>()
+  const seen = new Set<number>(mains.map(row => row.pid))
   const queue: ProcessRow[] = [...mains]
-  for (const row of mains) seen.add(row.pid)
   while (queue.length > 0) {
     const row = queue.shift() as ProcessRow
     add(matcher.isMain(row.command) ? 'main' : matcher.classify(row.command), row)
@@ -101,7 +140,7 @@ export function findIdeProcessTree(rows: ProcessRow[], matcher: IdeProcessMatche
     usage: {
       mainPid: main.pid,
       processCount: groups.reduce((total, group) => total + group.count, 0),
-      cpuPercent: round1(groups.reduce((total, group) => total + group.cpuPercent, 0)),
+      cpuPercent: cpuKnown ? round1(groups.reduce((total, group) => total + group.cpuPercent, 0)) : null,
       memoryBytes: groups.reduce((total, group) => total + group.memoryBytes, 0),
       groups,
     },
@@ -122,7 +161,8 @@ export const VSCODE_PROCESS_MATCHER: IdeProcessMatcher = {
       return /Visual Studio Code\.app\/Contents\/MacOS\/Electron(\s|$)/.test(command)
     }
     if (process.platform === 'win32') {
-      return /\\Code\.exe(\s|$)/i.test(command)
+      // Win32_Process quotes the executable, so the name may be followed by a quote.
+      return /\\Code\.exe"?(\s|$)/i.test(command)
     }
     return /(^|\/)code(\s|$)/.test(command) && !/code-server|\/bin\/code(\s|$)/.test(command)
   },
