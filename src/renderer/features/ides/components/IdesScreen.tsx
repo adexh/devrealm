@@ -10,8 +10,7 @@ import { POST_ACTION_REFRESH_DELAY_MS } from '../constants'
 import { useIdeGroups } from '../hooks/useIdeGroups'
 import { useIdeSnapshot } from '../hooks/useIdeSnapshot'
 import { closeIdeWindow, focusIdeWindow, openAccessibilitySettings, quitIde, requestAccessibility } from '../ipc/ides'
-import { openRepoInEditor } from '../ipc/repos'
-import type { IdeActionState, IdeUnopenedRepo, IdeWindowView } from '../types'
+import type { IdeActionState, IdeWindowView } from '../types'
 import { AccessibilityBanner } from './AccessibilityBanner'
 import { IdeEmptyState } from './IdeEmptyState'
 import { IdeNotice } from './IdeNotice'
@@ -82,13 +81,6 @@ export function IdesScreen() {
       navigateToTerminals()
     }, false)
 
-  const openRepo = (target: IdeUnopenedRepo) =>
-    run({ kind: 'open', targetId: target.repo.id }, () => openRepoInEditor({
-      targetPath: target.path,
-      repoId: target.repo.id,
-      workspaceId: target.repo.workspaceId,
-    }), true)
-
   const quit = () => {
     setQuitOpen(false)
     void run({ kind: 'quit', targetId: 'vscode' }, () => quitIde('vscode'), true)
@@ -111,7 +103,6 @@ export function IdesScreen() {
       ? 'Grant Accessibility permission to close windows from here'
       : 'Closing windows is only supported on macOS'
   const hasWindows = (snapshot?.windows.length ?? 0) > 0
-  const showGroups = hasWindows || groups.some(group => group.unopened.length > 0)
 
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-tm-bg">
@@ -145,7 +136,7 @@ export function IdesScreen() {
         ) : !snapshot ? null : (
           <div className="max-w-5xl mx-auto px-6 py-5 space-y-6">
             {!hasWindows && <IdeEmptyState snapshot={snapshot} />}
-            {showGroups && groups.map(group => (
+            {groups.map(group => (
               <IdeWorkspaceGroup
                 key={group.key}
                 group={group}
@@ -155,7 +146,6 @@ export function IdesScreen() {
                 onFocus={win => { void focusWindow(win) }}
                 onClose={win => { void closeWindow(win) }}
                 onTerminal={win => { void openTerminal(win) }}
-                onOpenRepo={target => { void openRepo(target) }}
               />
             ))}
           </div>

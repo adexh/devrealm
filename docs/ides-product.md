@@ -40,9 +40,9 @@ platforms, but its full power ships on macOS first.
   holds, refreshed while you look at it. No manual "scan".
 - **Act from the list.** Bring a window to the front, close it, open a terminal
   in its repo, or quit the whole IDE, without leaving DevRealm.
-- **Workspace context, not just windows.** Windows are grouped by DevRealm
-  workspace, and each group also shows the repos that are *not* open, so the
-  screen answers "what am I not looking at" as well as "what is open".
+- **Workspace context, not just windows.** Windows are grouped by the DevRealm
+  workspace whose repo they hold, so eight windows read as two or three
+  projects. Only what is open appears; the Dashboard is where repos are opened.
 - **Honest about cost.** Total CPU and memory VS Code is using, and what kind of
   processes it is spending them on, so "my laptop is slow" has a number.
 - **Ask for nothing until it is worth it.** The list works out of the box. macOS
@@ -73,7 +73,7 @@ The list refreshes on its own while the tab is visible and pauses when it is
 not. A **Refresh** button forces one. If a refresh cannot list windows, the
 last good list stays on screen, marked as such, instead of vanishing.
 
-Without macOS Accessibility (see 5.8) the list comes from the VS Code command
+Without macOS Accessibility (see 5.7) the list comes from the VS Code command
 line, which does not report windows that have no folder open, so an empty
 "Welcome" window is missing from the count until the permission is granted.
 
@@ -98,19 +98,12 @@ A **Terminal** action on each card opens a DevRealm shell already sitting in
 that folder and switches to the Terminals tab. The two features share the same
 idea: DevRealm knows where the code is, so you should never type a path.
 
-### 5.5 See what is not open
-
-Under each workspace group, the repos in that workspace **without** a window
-are listed with an **Open** action that launches VS Code on them. This is the
-inverse of the window list and is where the section earns its keep when you
-are mid-task: "backend and cloud-iac are open, the frontend is not."
-
-### 5.6 Quit VS Code
+### 5.5 Quit VS Code
 
 A **Quit VS Code** action in the summary strip, behind a confirmation, asks
 VS Code to quit cleanly. VS Code prompts for unsaved files itself.
 
-### 5.7 See where the cost goes
+### 5.6 See where the cost goes
 
 The summary strip expands into a breakdown by process kind: windows, extension
 hosts, GPU, other helpers, and processes extensions spawned. Per-window cost is
@@ -118,7 +111,7 @@ not shown; VS Code does not expose which renderer belongs to which window in a
 way DevRealm can read without private APIs, and a wrong number is worse than
 none.
 
-### 5.8 Grant Accessibility (macOS)
+### 5.7 Grant Accessibility (macOS)
 
 Without the permission the screen still lists windows, but does so through the
 VS Code command line, which is slower (a few seconds per refresh), leaves out
@@ -126,7 +119,7 @@ windows with no folder, and cannot close windows. A banner explains this and off
 the system prompt, and **Open System Settings**. The banner can be dismissed
 and stays dismissed.
 
-### 5.9 Keyboard
+### 5.8 Keyboard
 
 `⌘⇧I` jumps to the IDEs tab, matching `⌘⇧D`, `⌘⇧A` and `⌘⇧T`.
 
@@ -135,8 +128,8 @@ and stays dismissed.
 | State | What the user sees |
 |---|---|
 | VS Code not installed | Empty state saying so, with a link to install |
-| VS Code installed, not running | Empty state: "No VS Code windows", with the unopened repos of every workspace and Open actions, so the tab is still useful |
-| Running, no windows | Same as above, plus the process totals |
+| VS Code installed, not running | Empty state pointing to the Dashboard to open a repo |
+| Running, no windows | Same, plus the process totals |
 | Running, windows open | The full list |
 | Refresh failed | Last good list stays, with an inline error and a Retry |
 | Action failed (focus, close, quit) | Inline error on the card or strip; the list is refreshed so it reflects reality |
@@ -146,10 +139,10 @@ and stays dismissed.
 
 ## 7. What we deliberately do not do
 
-- **Per-window CPU or memory.** See 5.7.
+- **Per-window CPU or memory.** See 5.6.
 - **Force-kill a window or the IDE.** Data loss is not a feature.
-- **Open every repo in a workspace with one click.** Eight windows in one
-  gesture is exactly the state this section exists to prevent. Open is per repo.
+- **List or open repos that have no window.** The tab shows what is open and
+  nothing else; opening repos is the Dashboard's job.
 - **Move or resize windows.** Out of scope; macOS does this well already.
 - **Track IDEs other than VS Code.** Next up, not now.
 
@@ -158,11 +151,10 @@ and stays dismissed.
 The user can look at the IDEs tab and answer, without touching another app:
 
 1. How many VS Code windows are open, and which repos they hold.
-2. Which repos in the current workspace are not open.
-3. Roughly how much memory and CPU VS Code is using.
+2. Roughly how much memory and CPU VS Code is using.
 
 And can, with one click each: bring a window forward, close it, open a shell in
-its repo, open a missing repo, and quit VS Code.
+its repo, and quit VS Code.
 
 ## 9. Later
 
