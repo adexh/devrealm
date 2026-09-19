@@ -17,7 +17,12 @@ export class Server {
     private readonly buildId: string = ''
   ) {
     this.server = net.createServer(socket => this.handleConnection(socket))
-    this.registry.onChange(() => this.broadcastSessions())
+    this.registry.onChange(() => {
+      this.broadcastSessions()
+      // A shell exiting is what makes the daemon idle, so the countdown starts
+      // there rather than from whenever a client last said something.
+      this.armIdleTimer()
+    })
   }
 
   async listen(): Promise<void> {

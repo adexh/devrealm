@@ -36,4 +36,7 @@ async function start(): Promise<void> {
   process.stderr.write(`[pty-daemon] listening on ${socketPath} (pid ${process.pid})\n`)
 }
 
-void start()
+start().catch(error => {
+  process.stderr.write(`[pty-daemon] failed to start: ${String(error)}\n`)
+  process.exit(1)
+})

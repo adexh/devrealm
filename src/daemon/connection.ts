@@ -10,11 +10,12 @@ import {
   encodeJsonFrame,
   encodeExit,
 } from '../shared/node/terminalProtocol'
+import type { Attachment } from './session'
 import type { Registry } from './registry'
 
-type Attachment = {
+type RefBinding = {
   sessionId: string
-  unsubscribe: () => void
+  attachment: Attachment
 }
 
 /**
@@ -23,10 +24,17 @@ type Attachment = {
  */
 export class Connection {
   private readonly decoder = new FrameDecoder()
-  private readonly attachments = new Map<number, Attachment>()
+  private readonly attachments = new Map<number, RefBinding>()
   private nextRef = 1
   private handshakeDone = false
   private closed = false
+  /**
+   * Control operations run one at a time. Attach suspends on a write barrier,
+   * and a close arriving mid-suspend used to dispose the terminal the attach
+   * was waiting on, so its promise never settled and the client's request hung
+   * with no timeout behind it.
+   */
+  private controlQueue: Promise<void> = Promise.resolve()
 
   constructor(
     private readonly socket: Socket,
@@ -50,6 +58,9 @@ export class Connection {
       return
     }
     for (const frame of frames) {
+      // A frame may have destroyed the socket; the rest of the batch must not
+      // then run on a dead connection, which could open a pty nobody can reach.
+      if (this.closed || this.socket.destroyed) return
       try {
         this.handleFrame(frame.type, frame.ref, frame.payload)
       } catch (error) {
@@ -62,6 +73,7 @@ export class Connection {
 
   private handleFrame(type: number, ref: number, payload: Buffer): void {
     if (!this.handshakeDone && type !== FrameType.Hello) {
+      this.closed = true
       this.socket.destroy()
       return
     }
@@ -80,7 +92,7 @@ export class Connection {
       }
       case FrameType.Ack:
         if (payload.length < 4) return
-        return void this.sessionFor(ref)?.acknowledge(payload.readUInt32LE(0))
+        return void this.attachments.get(ref)?.attachment.acknowledge(payload.readUInt32LE(0))
       case FrameType.Ping:
         return this.send(encodeFrame(FrameType.Pong, 0, Buffer.alloc(0)))
       default:
@@ -130,13 +142,15 @@ export class Connection {
       return
     }
 
-    this.runControl(request)
-      .then(result => this.respond({ requestId: request.requestId, ok: true, result }))
-      .catch(error => this.respond({
-        requestId: request.requestId,
-        ok: false,
-        error: error instanceof Error ? error.message : 'Control operation failed',
-      }))
+    this.controlQueue = this.controlQueue.then(() =>
+      this.runControl(request)
+        .then(result => this.respond({ requestId: request.requestId, ok: true, result }))
+        .catch(error => this.respond({
+          requestId: request.requestId,
+          ok: false,
+          error: error instanceof Error ? error.message : 'Control operation failed',
+        }))
+    )
   }
 
   private async runControl(request: ControlRequest): Promise<unknown> {
@@ -179,14 +193,29 @@ export class Connection {
     session.resize(cols, rows)
 
     const ref = this.takeRef()
-    const unsubscribe = session.subscribe({
-      onData: chunk => this.send(encodeFrame(FrameType.Data, ref, chunk)),
-      onExit: exitCode => this.send(encodeExit(ref, exitCode)),
-    })
-    this.attachments.set(ref, { sessionId, unsubscribe })
 
-    // Snapshot first, so the client paints correct state before live output.
-    this.send(encodeFrame(FrameType.Snapshot, ref, await session.snapshot()))
+    // Subscribing and taking the snapshot must happen in the same tick. Held
+    // frames are then guaranteed to be output that arrived after the snapshot's
+    // write barrier, so every byte lands in exactly one of the two and the
+    // client never paints the same output twice or misses it.
+    let snapshotSent = false
+    const held: Buffer[] = []
+    const emit = (frame: Buffer) => {
+      if (snapshotSent) this.send(frame)
+      else held.push(frame)
+    }
+
+    const attachment = session.subscribe({
+      onData: chunk => emit(encodeFrame(FrameType.Data, ref, chunk)),
+      onExit: exitCode => emit(encodeExit(ref, exitCode)),
+    })
+    this.attachments.set(ref, { sessionId, attachment })
+
+    const snapshot = await session.snapshot()
+    this.send(encodeFrame(FrameType.Snapshot, ref, snapshot))
+    snapshotSent = true
+    for (const frame of held) this.send(frame)
+
     return { ref, session: session.info }
   }
 
@@ -212,10 +241,10 @@ export class Connection {
    * session-wide detach would also take down.
    */
   private detachSession(sessionId: string, only?: number): void {
-    for (const [ref, attachment] of this.attachments) {
-      if (attachment.sessionId !== sessionId) continue
+    for (const [ref, binding] of this.attachments) {
+      if (binding.sessionId !== sessionId) continue
       if (only !== undefined && ref !== only) continue
-      attachment.unsubscribe()
+      binding.attachment.dispose()
       this.attachments.delete(ref)
     }
   }
@@ -237,7 +266,7 @@ export class Connection {
   dispose(): void {
     if (this.closed) return
     this.closed = true
-    for (const attachment of this.attachments.values()) attachment.unsubscribe()
+    for (const binding of this.attachments.values()) binding.attachment.dispose()
     this.attachments.clear()
   }
 }

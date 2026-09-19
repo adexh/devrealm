@@ -28,6 +28,9 @@ type RefHandler = {
   onExit: (exitCode: number) => void
 }
 
+/** Marks a failure against a daemon that answered but could not be talked to. */
+class HandshakeError extends Error {}
+
 const CONNECT_TIMEOUT_MS = 5000
 const QUEUED_FRAME_LIMIT = 256
 
@@ -101,6 +104,12 @@ export class DaemonClient {
    * whose handler is not registered yet. Hold them until it is.
    */
   private readonly pendingFrames = new Map<number, { type: number; payload: Buffer }[]>()
+  /**
+   * Refs whose owner has gone. Frames for them keep arriving until the daemon
+   * processes the detach, and queueing those would hold them until the ref
+   * number came round again and handed them to its next owner.
+   */
+  private readonly abandonedRefs = new Set<number>()
   private readonly eventListeners = new Set<(event: ControlEvent) => void>()
 
   /**
@@ -129,6 +138,7 @@ export class DaemonClient {
   }
 
   registerRef(ref: number, handler: RefHandler): void {
+    this.abandonedRefs.delete(ref)
     this.refHandlers.set(ref, handler)
     const queued = this.pendingFrames.get(ref)
     if (!queued) return
@@ -139,6 +149,7 @@ export class DaemonClient {
   releaseRef(ref: number): void {
     this.refHandlers.delete(ref)
     this.pendingFrames.delete(ref)
+    this.abandonedRefs.add(ref)
   }
 
   private dispatchToRef(handler: RefHandler, type: number, payload: Buffer): void {
@@ -150,6 +161,7 @@ export class DaemonClient {
   private routeRefFrame(ref: number, type: number, payload: Buffer): void {
     const handler = this.refHandlers.get(ref)
     if (handler) return this.dispatchToRef(handler, type, payload)
+    if (this.abandonedRefs.has(ref)) return
 
     const queue = this.pendingFrames.get(ref) ?? []
     // Bounded, so a ref that never registers cannot grow without limit.
@@ -202,7 +214,7 @@ export class DaemonClient {
         this.adoptSocket(socket)
         this.handshake().then(resolve).catch(error => {
           this.abandonSocket(socket)
-          reject(error)
+          reject(new HandshakeError(error instanceof Error ? error.message : String(error)))
         })
       })
     })
@@ -253,6 +265,7 @@ export class DaemonClient {
     for (const handler of this.refHandlers.values()) handler.onExit(-1)
     this.refHandlers.clear()
     this.pendingFrames.clear()
+    this.abandonedRefs.clear()
   }
 
   private handshake(): Promise<void> {
@@ -355,33 +368,43 @@ export class DaemonClient {
     }
 
     for (const frame of frames) {
-      switch (frame.type) {
-        case FrameType.HelloAck: {
-          this.handshakeResolver?.(JSON.parse(frame.payload.toString('utf8')) as HelloAck)
-          this.handshakeResolver = null
-          break
-        }
-        case FrameType.ControlResponse: {
-          const body = JSON.parse(frame.payload.toString('utf8'))
-          const waiter = this.pending.get(body.requestId)
-          if (!waiter) break
-          this.pending.delete(body.requestId)
-          body.ok ? waiter.resolve(body.result) : waiter.reject(new Error(body.error))
-          break
-        }
-        case FrameType.ControlEvent: {
-          const body = JSON.parse(frame.payload.toString('utf8')) as ControlEvent
-          for (const listener of this.eventListeners) listener(body)
-          break
-        }
-        case FrameType.Data:
-        case FrameType.Snapshot:
-        case FrameType.Exit:
-          this.routeRefFrame(frame.ref, frame.type, frame.payload)
-          break
-        default:
-          break
+      try {
+        this.routeFrame(frame)
+      } catch (error) {
+        // Malformed JSON from whatever is on the socket must not throw out of a
+        // socket callback and take the main process with it.
+        process.stderr.write(`[terminals] dropped frame type ${frame.type}: ${String(error)}\n`)
       }
+    }
+  }
+
+  private routeFrame(frame: { type: number; ref: number; payload: Buffer }): void {
+    switch (frame.type) {
+      case FrameType.HelloAck: {
+        this.handshakeResolver?.(JSON.parse(frame.payload.toString('utf8')) as HelloAck)
+        this.handshakeResolver = null
+        break
+      }
+      case FrameType.ControlResponse: {
+        const body = JSON.parse(frame.payload.toString('utf8'))
+        const waiter = this.pending.get(body.requestId)
+        if (!waiter) break
+        this.pending.delete(body.requestId)
+        body.ok ? waiter.resolve(body.result) : waiter.reject(new Error(body.error))
+        break
+      }
+      case FrameType.ControlEvent: {
+        const body = JSON.parse(frame.payload.toString('utf8')) as ControlEvent
+        for (const listener of this.eventListeners) listener(body)
+        break
+      }
+      case FrameType.Data:
+      case FrameType.Snapshot:
+      case FrameType.Exit:
+        this.routeRefFrame(frame.ref, frame.type, frame.payload)
+        break
+      default:
+        break
     }
   }
 

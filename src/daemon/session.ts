@@ -10,7 +10,15 @@ type Subscriber = {
   onExit: (exitCode: number) => void
 }
 
+const SNAPSHOT_BARRIER_TIMEOUT_MS = 250
+
 type ExitListener = (exitCode: number) => void
+
+/** Handle for one attached client, with its own flow-control debt. */
+export type Attachment = {
+  acknowledge: (byteCount: number) => void
+  dispose: () => void
+}
 
 /**
  * One shell. Owns its PTY, a headless xterm holding authoritative screen state
@@ -23,8 +31,12 @@ export class Session {
   private readonly pty: pty.IPty
   private readonly headless: HeadlessTerminal
   private readonly serializer: SerializeAddon
-  /** Attached clients streaming output. Emptiness means nobody can ack. */
-  private readonly subscribers = new Set<Subscriber>()
+  /**
+   * Attached clients and what each still owes. Debt is per client, not per
+   * session: with one counter a fast client acknowledges on behalf of a slow
+   * one, and the slow one's buffers grow unchecked.
+   */
+  private readonly subscribers = new Map<Subscriber, { unacked: number }>()
   /**
    * Bookkeeping that wants the exit code but no output. Kept apart from
    * subscribers on purpose: the registry listens for the lifetime of the
@@ -37,12 +49,6 @@ export class Session {
   private pendingBytes = 0
   private flushTimer: NodeJS.Timeout | null = null
 
-  /**
-   * Bytes sent to clients and not yet acknowledged. Bytes, not JS string
-   * length, so it matches exactly what the renderer counts back; charging
-   * UTF-16 code units against UTF-8 acks over-credits every non-ASCII byte.
-   */
-  private unacknowledgedBytes = 0
   private ptyPaused = false
   private disposed = false
 
@@ -96,16 +102,11 @@ export class Session {
     // One encode, here, at the daemon boundary. Nothing downstream decodes.
     const encoded = Buffer.from(data, 'utf8')
 
-    // Only charge for output someone is expected to acknowledge. Output with no
-    // subscriber can never be acked, so counting it would pause the pty with no
-    // way back: a background build could freeze its own shell forever.
-    if (this.subscribers.size > 0) {
-      this.unacknowledgedBytes += encoded.length
-      if (!this.ptyPaused && this.unacknowledgedBytes > FlowControl.HighWatermarkBytes) {
-        this.ptyPaused = true
-        this.pty.pause()
-      }
-    }
+    // Charged only to clients that can acknowledge it. Output nobody is
+    // attached to can never be acked, so counting it would pause the pty with
+    // no way back: a background build could freeze its own shell forever.
+    for (const debt of this.subscribers.values()) debt.unacked += encoded.length
+    this.applyBackpressure()
     this.pending.push(encoded)
     this.pendingBytes += encoded.length
 
@@ -115,6 +116,25 @@ export class Session {
     }
     if (!this.flushTimer) {
       this.flushTimer = setTimeout(() => this.flush(), Coalesce.FlushIntervalMs)
+    }
+  }
+
+  /** Paused while any one client is behind; resumed once all have caught up. */
+  private applyBackpressure(): void {
+    if (this.info.exitCode !== null) return
+    const debts = [...this.subscribers.values()]
+
+    if (!this.ptyPaused) {
+      if (debts.some(debt => debt.unacked > FlowControl.HighWatermarkBytes)) {
+        this.ptyPaused = true
+        this.pty.pause()
+      }
+      return
+    }
+
+    if (debts.every(debt => debt.unacked < FlowControl.LowWatermarkBytes)) {
+      this.ptyPaused = false
+      this.pty.resume()
     }
   }
 
@@ -128,24 +148,32 @@ export class Session {
     const chunk = this.pending.length === 1 ? this.pending[0] : Buffer.concat(this.pending, this.pendingBytes)
     this.pending = []
     this.pendingBytes = 0
-    for (const subscriber of this.subscribers) subscriber.onData(chunk)
+    for (const subscriber of this.subscribers.keys()) subscriber.onData(chunk)
   }
 
   private handleExit(exitCode: number): void {
     this.flush()
     this.info.exitCode = exitCode
     this.info.lastActiveAt = Date.now()
-    for (const subscriber of this.subscribers) subscriber.onExit(exitCode)
+    for (const subscriber of this.subscribers.keys()) subscriber.onExit(exitCode)
     for (const listener of this.exitListeners) listener(exitCode)
   }
 
-  subscribe(subscriber: Subscriber): () => void {
-    this.subscribers.add(subscriber)
-    return () => {
-      this.subscribers.delete(subscriber)
-      // The last client is gone, so nothing will ever ack the outstanding
-      // bytes. Clear the debt and let the shell run.
-      if (this.subscribers.size === 0) this.resetFlowControl()
+  subscribe(subscriber: Subscriber): Attachment {
+    const debt = { unacked: 0 }
+    this.subscribers.set(subscriber, debt)
+
+    return {
+      acknowledge: (byteCount: number) => {
+        debt.unacked = Math.max(0, debt.unacked - byteCount)
+        this.applyBackpressure()
+      },
+      dispose: () => {
+        if (!this.subscribers.delete(subscriber)) return
+        // That client's debt leaves with it, and the shell must not stay paused
+        // waiting on acks that can no longer come.
+        this.applyBackpressure()
+      },
     }
   }
 
@@ -154,18 +182,6 @@ export class Session {
     return () => { this.exitListeners.delete(listener) }
   }
 
-  private resetFlowControl(): void {
-    this.unacknowledgedBytes = 0
-    if (!this.ptyPaused) return
-    this.ptyPaused = false
-    if (this.info.exitCode === null) this.pty.resume()
-  }
-
-  /**
-   * Current screen plus scrollback as an escape-sequence string, so a client
-   * that attaches late gets correct terminal state rather than a byte window
-   * that may start mid-sequence.
-   */
   /**
    * `headless.write` is asynchronous, so serialising straight away can catch the
    * buffer mid-parse and hand a client a snapshot missing the output that
@@ -174,8 +190,15 @@ export class Session {
    */
   snapshot(): Promise<Buffer> {
     return new Promise(resolve => {
+      const serialize = () =>
+        Buffer.from(this.serializer.serialize({ scrollback: SNAPSHOT_SCROLLBACK_LINES }), 'utf8')
+
+      // A barrier that never fires would hang the attach, and with it every
+      // control request queued behind it.
+      const giveUp = setTimeout(() => resolve(serialize()), SNAPSHOT_BARRIER_TIMEOUT_MS)
       this.headless.write('', () => {
-        resolve(Buffer.from(this.serializer.serialize({ scrollback: SNAPSHOT_SCROLLBACK_LINES }), 'utf8'))
+        clearTimeout(giveUp)
+        resolve(serialize())
       })
     })
   }
@@ -192,18 +215,6 @@ export class Session {
   write(data: Buffer): void {
     if (this.disposed || this.info.exitCode !== null) return
     this.pty.write(data.toString('utf8'))
-  }
-
-  /**
-   * Client has rendered `byteCount` bytes. Resume the pty once it has caught
-   * up past the low watermark.
-   */
-  acknowledge(byteCount: number): void {
-    this.unacknowledgedBytes = Math.max(0, this.unacknowledgedBytes - byteCount)
-    if (this.ptyPaused && this.unacknowledgedBytes < FlowControl.LowWatermarkBytes) {
-      this.ptyPaused = false
-      this.pty.resume()
-    }
   }
 
   resize(cols: number, rows: number): void {
