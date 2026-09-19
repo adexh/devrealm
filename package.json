@@ -19,10 +19,10 @@
     "dev:daemon": "tsc -p tsconfig.daemon.json -w --preserveWatchOutput",
     "build:daemon": "tsc -p tsconfig.daemon.json",
     "lint:daemon": "tsc -p tsconfig.daemon.json --noEmit",
-    "smoke:daemon": "npm run build:daemon && node scripts/smoke-daemon.js",
-    "smoke:main": "npm run build:main && npm run build:daemon && electron scripts/smoke-main.js",
+    "smoke:daemon": "npm run build:daemon && node tests/smoke/daemon.js",
+    "smoke:main": "npm run build:main && npm run build:daemon && electron tests/smoke/main.js",
     "smoke": "npm run smoke:daemon && npm run smoke:main && npm run smoke:renderer",
-    "smoke:renderer": "npm run build && electron scripts/smoke-renderer.js"
+    "smoke:renderer": "npm run build && electron tests/smoke/renderer.js"
   },
   "build": {
     "appId": "com.devrealm.app",

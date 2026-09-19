@@ -268,6 +268,15 @@ terminals. Only type-only imports belong in `preload.ts`.
 cloned port is inert: no `start`, no `postMessage`, no `close`. Preload forwards
 the live port into the main world with `window.postMessage` instead.
 
+**Ports are broadcast to the whole window, so route them, never filter them.**
+Preload delivers every session's port with one `window.postMessage`, which means
+every listener sees every port. A split has two panes attached at once, so a
+per-pane listener that closed ports addressed to other sessions killed its
+sibling's port the moment the second pane attached: the right pane got no
+snapshot, no output and swallowed every keystroke. `onSessionPort` keeps one
+window listener and a subscriber per session id, and closes a port only when
+nothing is waiting for that session.
+
 **The daemon sends the snapshot before the attach response.** Frames can arrive
 for a ref whose handler is not registered yet. `DaemonClient` queues per ref,
 bounded, and drains on registration.
@@ -303,7 +312,11 @@ After a fresh install or an Electron upgrade:
 
 The smoke tests run real code under the real Electron binary, so a broken native
 node-pty build fails them. `smoke:renderer` is the one that covers the preload
-and MessagePort path, where three of the bugs above lived.
+and MessagePort path, where three of the bugs above lived, and it attaches two
+sessions at once so the split's data plane is covered too.
+
+The suites live in `tests/`, with shared helpers in `tests/helpers/`; see
+`tests/README.md`.
 
 **A stale daemon serves old code.** The daemon outlives edits to its own source,
 so after a rebuild it keeps running the old build. This is how shells kept

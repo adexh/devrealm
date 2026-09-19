@@ -11,14 +11,11 @@ const path = require('path')
 const fs = require('fs')
 const os = require('os')
 
-const ROOT = path.resolve(__dirname, '..')
-const PRELOAD = path.join(ROOT, 'dist/main/preload.js')
+const { ROOT, PRELOAD } = require('../helpers/paths')
+const { useTemporaryDaemonHome } = require('../helpers/daemonHome')
+const { check, summary } = require('../helpers/report')
 
-// Its own daemon home. Without this the test drives the developer's real
-// daemon and can trigger the stale-build replacement, killing the shells they
-// are working in.
-const HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'devrealm-renderer-smoke-'))
-process.env.DEVREALM_DAEMON_HOME = HOME
+const { cleanup: cleanupHome } = useTemporaryDaemonHome('smoke-renderer')
 
 const CSS = fs.readdirSync(path.join(ROOT, 'dist/renderer/assets'))
   .filter(name => name.startsWith('index-') && name.endsWith('.css'))
@@ -152,7 +149,6 @@ async function run() {
 run().catch(e => { console.log('FAIL threw | ' + e.message); window.__done = true })
 </script></body>`
 
-let failures = 0
 
 app.whenReady().then(async () => {
   const { registerTerminalIpcHandlers } = require(path.join(ROOT, 'dist/main/terminals/ipc.js'))
@@ -166,11 +162,14 @@ app.whenReady().then(async () => {
     show: false,
     webPreferences: { preload: PRELOAD, contextIsolation: true, nodeIntegration: false },
   })
+  // Assertions run in page context, so they arrive as console lines and are
+  // replayed into the shared reporter here.
   win.webContents.on('console-message', (...args) => {
     const message = typeof args[1] === 'string' ? args[1] : args[0]?.message
     if (!message) return
-    if (message.startsWith('FAIL')) failures++
-    console.log(message)
+    const match = /^(ok|FAIL)\s+(.*)$/.exec(message)
+    if (match) check(match[2], match[1] === 'ok')
+    else console.log(message)
   })
 
   await win.loadFile(pagePath)
@@ -182,6 +181,6 @@ app.whenReady().then(async () => {
   }
 
   fs.rmSync(pagePath, { force: true })
-  console.log(failures === 0 ? '\nall checks passed' : `\n${failures} check(s) failed`)
-  app.exit(failures === 0 ? 0 : 1)
+  cleanupHome()
+  app.exit(summary())
 })

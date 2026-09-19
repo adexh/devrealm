@@ -29,6 +29,9 @@ npm run smoke:main     # drives the main-process DaemonClient under Electron
 npm run smoke:renderer # drives a real BrowserWindow with the real preload
 ```
 
+Tests live in `tests/`, suites in `tests/smoke/` and shared code in
+`tests/helpers/`. `scripts/` is build tooling only. See `tests/README.md`.
+
 `node-pty` is a native module built against Electron's ABI. After a fresh
 install or an Electron upgrade, run `npx electron-rebuild -f -w node-pty`.
 

@@ -16,4 +16,5 @@ registry.ts   session map, manifest persistence, reaping
 ```
 
 Imports nothing from `src/main` or `src/renderer`. Shares only
-`src/shared/terminalProtocol.ts` and `src/shared/terminal.ts`.
+`src/shared/node/terminalProtocol.ts`, `src/shared/terminalConstants.ts` and
+`src/shared/terminal.ts`.
