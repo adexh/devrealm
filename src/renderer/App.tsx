@@ -14,6 +14,7 @@ import { useNavigation } from './hooks/useNavigation'
 import { useWorkspaceStore } from './stores/workspaceStore'
 import { editorTabId, isEditorTab, useNavigationStore, type Tab } from './stores/navigationStore'
 import { useUiStore } from './stores/uiStore'
+import { resolveRepoPath } from './utils/paths'
 
 
 
@@ -31,18 +32,6 @@ const isMarketplaceView = new URLSearchParams(window.location.search).get('view'
 
 function LoadingView() {
   return <div className="flex-1 flex items-center justify-center"><Spinner /></div>
-}
-
-function isAbsolutePath(value: string): boolean {
-  return value.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(value) || value.startsWith('\\\\')
-}
-
-function resolveRepoSearchPath(repoPath: string, workspace?: Workspace | null): string | null {
-  const trimmedPath = repoPath.trim()
-  if (!trimmedPath) return null
-  if (isAbsolutePath(trimmedPath)) return trimmedPath
-  if (!workspace?.rootPath) return null
-  return `${workspace.rootPath.replace(/[\\/]+$/, '')}/${trimmedPath.replace(/^[\\/]+/, '')}`
 }
 
 export default function App() {
@@ -582,7 +571,7 @@ function GlobalSearchPanel() {
     }))
     const repoItems: GlobalSearchItem[] = repos.flatMap(repo => {
       const owningWs = repoWorkspaceMap.get(repo.id) ?? null
-      const repoPath = resolveRepoSearchPath(repo.path, owningWs)
+      const repoPath = resolveRepoPath(repo.path, owningWs)
       if (!repoPath) return []
       return {
         id: `repo:${repo.id}`,

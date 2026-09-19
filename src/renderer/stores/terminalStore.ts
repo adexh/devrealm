@@ -5,6 +5,7 @@ import { useWorkspaceStore } from './workspaceStore'
 import { DRAWER_WIDTH, HOME_WORKSPACE_ID, HOME_WORKSPACE_NAME, RAIL_WIDTH } from '../features/terminals/constants'
 import type { DrawerFilter, SessionStat, TerminalSession } from '../features/terminals/types'
 import * as terminalsIpc from '../features/terminals/ipc/terminals'
+import { shortenHome } from '../utils/paths'
 
 type OpenSessionInput = {
   workspaceId: string
@@ -61,11 +62,6 @@ interface TerminalState {
   setDrawerQuery: (query: string) => void
   setDrawerFilter: (filter: DrawerFilter) => void
   focusAdjacentSession: (offset: 1 | -1) => void
-}
-
-function shortenHome(absolutePath: string): string {
-  const match = absolutePath.match(/^\/Users\/[^/]+\/(.*)$|^\/home\/[^/]+\/(.*)$/)
-  return match ? `~/${match[1] ?? match[2]}` : absolutePath
 }
 
 /**
