@@ -1,0 +1,12 @@
+    1     0   0.0   7056 /sbin/launchd
+ 4939 92503   0.0  35792 /private/var/folders/xx/T/AppTranslocation/0000/d/Visual Studio Code.app/Contents/Frameworks/Code Helper (Renderer).app/Contents/MacOS/Code Helper (Renderer) --type=renderer --user-data-dir=/Users/dev/Library/Application Support/Code
+21353 92503   0.0 102144 /private/var/folders/xx/T/AppTranslocation/0000/d/Visual Studio Code.app/Contents/Frameworks/Code Helper (Plugin).app/Contents/MacOS/Code Helper (Plugin) --type=utility --utility-sub-type=node.mojom.NodeService --dns-result-order=ipv4first --inspect-port=0
+21359 21353   0.0  20080 /Users/dev/.vscode/extensions/some.extension/bin/server --stdio
+21953 92503   9.1 284672 /private/var/folders/xx/T/AppTranslocation/0000/d/Visual Studio Code.app/Contents/Frameworks/Code Helper (Renderer).app/Contents/MacOS/Code Helper (Renderer) --type=renderer --user-data-dir=/Users/dev/Library/Application Support/Code
+27845 93132   0.0   3000 /bin/zsh -il
+34933     1   0.7  89808 /Applications/Other.app/Contents/MacOS/Other
+77777     1   0.1  50000 /private/var/folders/xx/T/AppTranslocation/0000/d/Visual Studio Code.app/Contents/MacOS/Electron /private/var/folders/xx/T/AppTranslocation/0000/d/Visual Studio Code.app/Contents/Resources/app/out/cli.js --status
+92503     1   0.3 144160 /private/var/folders/xx/T/AppTranslocation/0000/d/Visual Studio Code.app/Contents/MacOS/Electron
+92508 92503   4.9  48592 /private/var/folders/xx/T/AppTranslocation/0000/d/Visual Studio Code.app/Contents/Frameworks/Code Helper (GPU).app/Contents/MacOS/Code Helper (GPU) --type=gpu-process --user-data-dir=/Users/dev/Library/Application Support/Code
+92514 92503   0.0  42672 /private/var/folders/xx/T/AppTranslocation/0000/d/Visual Studio Code.app/Contents/Frameworks/Code Helper (Renderer).app/Contents/MacOS/Code Helper (Renderer) --type=renderer --user-data-dir=/Users/dev/Library/Application Support/Code
+93132 92503   0.2  23728 /private/var/folders/xx/T/AppTranslocation/0000/d/Visual Studio Code.app/Contents/Frameworks/Code Helper.app/Contents/MacOS/Code Helper --type=utility --utility-sub-type=node.mojom.NodeService --user-data-dir=/Users/dev/Library/Application Support/Code

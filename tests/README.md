@@ -9,6 +9,7 @@ npm run smoke            # all three
 npm run smoke:daemon     # the daemon over its socket
 npm run smoke:main       # the main-process DaemonClient under Electron
 npm run smoke:renderer   # a real BrowserWindow with the real preload
+npm run smoke:ides       # the IDEs feature's main-process modules, plus a live VS Code snapshot
 ```
 
 ```
@@ -22,6 +23,9 @@ tests/
     daemon.js       persistence, snapshots, flow control, env stripping
     main.js         spawn, connect, stale-daemon replacement
     renderer.js     the MessagePort data plane, split panes, theming
+    ides.js         title parsing, --status parsing, process classification, live snapshot
+  fixtures/
+    ides/           `code --status` output and a `ps` listing captured from VS Code 1.107
 ```
 
 Each suite runs its own daemon against a temporary `DEVREALM_DAEMON_HOME`.
@@ -29,7 +33,12 @@ Never point one at the real home: the stale-build check would replace the
 developer's daemon and kill the shells they are working in.
 
 Every check here exists because something broke. Before removing one, find the
-bug it was written for in `docs/terminals.md`.
+bug it was written for in `docs/terminals.md` or `docs/ides-implementation.md`.
+
+The suites run under the Electron binary. From a VS Code terminal or a Claude
+Code session, `ELECTRON_RUN_AS_NODE=1` is already set and turns that binary
+into plain Node, so `require('electron')` returns a path string and `app` is
+undefined. Run them with `env -u ELECTRON_RUN_AS_NODE npm run smoke` there.
 
 ## Known gaps
 
@@ -47,3 +56,10 @@ modules, so two checks stand in for code they do not actually run:
 Closing either means loading the built renderer chunk into the page, which ties
 the test to hashed filenames and module side effects. Worth it only if one of
 these regresses again.
+
+The IDEs suite cannot reach the AppleScript path. `System Events` refuses a
+process whose parent has no Automation consent, and the test's Electron binary
+never gets one, so listing, raising and closing windows through Accessibility
+are verified in the running app instead. The live section lists windows through
+the CLI fallback, which is the same code the app runs before the permission is
+granted.

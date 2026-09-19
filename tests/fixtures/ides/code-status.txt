@@ -1,0 +1,82 @@
+
+Version:          Code 1.107.1 (994fd12f8d3a5aa16f17d42c041e5809167e845a, 2025-12-17T14:15:14.850Z)
+OS Version:       Darwin arm64 25.2.0
+CPUs:             Apple M4 (10 x 2400)
+Memory (System):  16.00GB (0.15GB free)
+Load (avg):       3, 3, 2
+VM:               0%
+Screen Reader:    yes
+Process Argv:     --crash-reporter-id 3a54cf31-5f95-4d48-8b94-590655fa7c0e
+GPU Status:       2d_canvas:                              enabled
+                  direct_rendering_display_compositor:    disabled_off_ok
+                  gpu_compositing:                        enabled
+                  multiple_raster_threads:                enabled_on
+                  opengl:                                 enabled_on
+                  rasterization:                          enabled
+                  raw_draw:                               disabled_off_ok
+                  skia_graphite:                          enabled_on
+                  trees_in_viz:                           disabled_off
+                  video_decode:                           enabled
+                  video_encode:                           enabled
+                  webgl:                                  enabled
+                  webgl2:                                 enabled
+                  webgpu:                                 enabled
+                  webnn:                                  disabled_off
+
+CPU %	Mem MB	   PID	Process
+    3	22517998137	 92503	code
+    1	8444249301	 92508	   gpu-process
+    0	2814749767	 92509	   utility-network-service
+    0	8444249301	 92514	window [4] (Location service public … — alphaform-customer-fe — Code)
+    0	5629499534	 92641	shared-process
+    0	5629499534	 93131	extension-host [4]
+    0	2814749767	 93346	     /Users/dev/.vscode/extensions/openai.chatgpt-26.908.40401-darwin-arm64/bin/macos-aarch64/codex -c features.code_mode_host=true app-server --analytics-default-enabled
+    0	     0	 93451	     /Users/dev/.vscode/extensions/opentofu.vscode-opentofu-0.6.3-darwin-arm64/bin/tofu-ls serve
+    0	2814749767	 93455	     /private/var/folders/xx/T/AppTranslocation/0000/d/Visual Studio Code.app/Contents/Frameworks/Code Helper (Plugin).app/Contents/MacOS/Code Helper (Plugin) /private/var/folders/xx/T/AppTranslocation/0000/d/Visual Studio Code.app/Contents/Resources/app/extensions/json-language-features/server/dist/node/jsonServerMain --node-ipc --clientProcessId=93131
+    0	11258999068	 95158	     /Users/dev/.vscode/extensions/anthropic.claude-code-2.1.272-darwin-arm64/resources/native-binary/claude --output-format stream-json --verbose --input-format stream-json --max-thinking-tokens 31999 --permission-prompt-tool stdio --setting-sources=user,project,local --permission-mode auto --include-partial-messages --debug --debug-to-stderr --enable-auth-status --no-chrome --replay-user-messages
+    0	     0	 95182	       npm exec uxmagic-mcp@1.2.0
+    0	     0	 95329	         node /Users/dev/.npm/_npx/70d30fcde2277ec0/node_modules/.bin/uxmagic-mcp
+    0	11258999068	 96041	     /Users/dev/.vscode/extensions/anthropic.claude-code-2.1.272-darwin-arm64/resources/native-binary/claude --output-format stream-json --verbose --input-format stream-json --max-thinking-tokens 31999 --permission-prompt-tool stdio --resume=c0a731a8-139b-48f6-8a14-f1f22d8b7fd5 --setting-sources=user,project,local --permission-mode auto --include-partial-messages --debug --debug-to-stderr --enable-auth-status --no-chrome --replay-user-messages
+    0	     0	 96704	       npm exec uxmagic-mcp@1.2.0
+    0	     0	 98212	         node /Users/dev/.npm/_npx/70d30fcde2277ec0/node_modules/.bin/uxmagic-mcp
+    0	2814749767	 96198	     electron-nodejs (server-node.js)
+    0	     0	 96314	     /private/var/folders/xx/T/AppTranslocation/0000/d/Visual Studio Code.app/Contents/Frameworks/Code Helper (Plugin).app/Contents/MacOS/Code Helper (Plugin) /Users/dev/.vscode/extensions/streetsidesoftware.code-spell-checker-4.7.3/packages/_server/dist/main.cjs --node-ipc --clientProcessId=93131
+    0	     0	 96339	     electron-nodejs (tailwindServer.js)
+    0	2814749767	 93132	pty-host
+    0	     0	 27845	     /bin/zsh -il
+    0	     0	 93300	     /bin/zsh -il
+    0	2814749767	 93292	file-watcher [4]
+    0	2814749767	 93403	   window
+
+Workspace Stats: 
+|  Window (Playwright e2e testing s… — cross-platform-e2e-tests)
+|  Window (cloud-iac — Code)
+|  Window (Changes explanation — alphaform-backend — Code)
+|  Window (IDE and terminal manager — devrealm — Code)
+|  Window (Location service public … — alphaform-customer-fe — Code)
+|    Folder (cross-platform-e2e-tests): 87 files
+|      File types: ts(45) json(9) md(3) png(2) env(1) example(1) gitignore(1)
+|                  webm(1) html(1) yaml(1)
+|      Conf files: package.json(1) tsconfig.json(1)
+|    Folder (devrealm): 350 files
+|      File types: ts(70) png(52) js(48) tsx(47) json(14) md(10) css(4)
+|                  html(4) mjs(3) DS_Store(2)
+|      Conf files: package.json(3) github-actions(1) claude.md(1)
+|                  tsconfig.json(1)
+|    Folder (cloud-iac): 585 files
+|      File types: tf(221) md(92) hcl(33) example(28) lock(10) tfvars(7) sh(6)
+|                  tfbackend(5) yml(4) json(4)
+|      Conf files: makefile(2)
+|    Folder (alphaform-customer-fe): 2360 files
+|      File types: js(483) map(329) ts(299) tsx(247) json(176) rsc(96) txt(92)
+|                  html(51) sst(45) meta(44)
+|      Conf files: package.json(5) claude.md(2) github-actions(2)
+|                  settings.json(1) makefile(1) tsconfig.json(1)
+|    Folder (alphaform-backend): 4044 files
+|      File types: ts(1757) html(694) sql(181) tf(66) md(48) gitkeep(27)
+|                  json(24) example(18) yml(15) js(11)
+|      Conf files: dockerfile(6) makefile(6) agents.md(3) claude.md(3)
+|                  package.json(3) tsconfig.json(3) webpack.config.js(3)
+|                  github-actions(2)
+
+

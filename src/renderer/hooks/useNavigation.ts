@@ -23,6 +23,7 @@ export function useNavigation() {
         if (key === 'd') handleTabChange('Dashboard')
         if (key === 'a') handleTabChange('AI Configs')
         if (key === 't') handleTabChange('Terminals')
+        if (key === 'i') handleTabChange('IDEs')
       }
       if (e.key === 'Backspace' && !e.metaKey && !e.altKey && !e.ctrlKey) {
         const tag = (e.target as HTMLElement).tagName
