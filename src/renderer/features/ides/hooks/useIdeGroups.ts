@@ -17,7 +17,9 @@ export function useIdeGroups(snapshot: IdeSnapshot | null): IdeWindowGroup[] {
   return useMemo(() => {
     const windows = snapshot?.windows ?? []
     const repoById = new Map(repos.map(repo => [repo.id, repo]))
-    const openFolders = new Set(windows.flatMap(win => win.folderPath ? [win.folderPath] : []))
+    // By repo id, not path: main resolves paths with Node's path module and this
+    // side with string joins, so the same repo could spell its path two ways.
+    const openRepoIds = new Set(windows.flatMap(win => win.repoId ? [win.repoId] : []))
 
     const groups: IdeWindowGroup[] = workspaces.map(workspace => {
       const own = windows
@@ -26,8 +28,9 @@ export function useIdeGroups(snapshot: IdeSnapshot | null): IdeWindowGroup[] {
       const unopened: IdeUnopenedRepo[] = repos
         .filter(repo => repo.workspaceId === workspace.id)
         .flatMap(repo => {
+          if (openRepoIds.has(repo.id)) return []
           const path = resolveRepoPath(repo.path, workspace)
-          return path && !openFolders.has(path) ? [{ repo, path }] : []
+          return path ? [{ repo, path }] : []
         })
       return { key: workspace.id, workspaceId: workspace.id, name: workspace.name, windows: own, unopened }
     })

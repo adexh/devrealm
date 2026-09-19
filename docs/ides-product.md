@@ -84,7 +84,7 @@ red traffic light does, so VS Code's own "save changes?" dialog appears when
 there is unsaved work. DevRealm never force-kills a window.
 
 Available on macOS once Accessibility permission is granted. Elsewhere the
-action is hidden and the card explains why.
+action is disabled and its tooltip says why.
 
 ### 5.4 Open a terminal in the window's repo
 
@@ -134,7 +134,7 @@ and stays dismissed.
 | Running, windows open | The full list |
 | Refresh failed | Last good list stays, with an inline error and a Retry |
 | Action failed (focus, close, quit) | Inline error on the card or strip; the list is refreshed so it reflects reality |
-| Accessibility not granted (macOS) | Banner, slower refresh, Close hidden |
+| Accessibility not granted (macOS) | Banner, slower refresh, Close disabled with a reason |
 
 ## 7. What we deliberately do not do
 

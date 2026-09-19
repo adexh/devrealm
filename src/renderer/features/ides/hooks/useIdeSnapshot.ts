@@ -22,6 +22,7 @@ export function useIdeSnapshot() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const activeRef = useRef(true)
   const sourceRef = useRef<IdeSnapshot['source'] | null>(null)
+  const cyclingRef = useRef(false)
 
   const refresh = useCallback(async () => {
     setState(current => ({ ...current, refreshing: true }))
@@ -50,7 +51,9 @@ export function useIdeSnapshot() {
     }
 
     async function cycle() {
+      cyclingRef.current = true
       await refresh()
+      cyclingRef.current = false
       if (!activeRef.current || document.visibilityState === 'hidden') return
       clearTimer()
       timerRef.current = setTimeout(() => { void cycle() }, POLL_INTERVAL_MS[sourceRef.current ?? 'none'])
@@ -61,7 +64,9 @@ export function useIdeSnapshot() {
         clearTimer()
         return
       }
-      if (!timerRef.current) void cycle()
+      // A capture that was in flight when the tab hid will schedule the next
+      // poll itself once it resolves; starting another here would run two chains.
+      if (!timerRef.current && !cyclingRef.current) void cycle()
     }
 
     document.addEventListener('visibilitychange', onVisibility)

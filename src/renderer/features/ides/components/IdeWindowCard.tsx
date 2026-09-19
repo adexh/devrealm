@@ -3,9 +3,10 @@ import type { IdeCapabilities } from '../../../../shared/ide'
 import { Spinner } from '../../../components/Spinner'
 import type { IdeActionKind, IdeWindowView } from '../types'
 
-export function IdeWindowCard({ win, capabilities, busy, onFocus, onClose, onTerminal }: {
+export function IdeWindowCard({ win, capabilities, closeUnavailableReason, busy, onFocus, onClose, onTerminal }: {
   win: IdeWindowView
   capabilities: IdeCapabilities
+  closeUnavailableReason: string | null
   busy: IdeActionKind | null
   onFocus: () => void
   onClose: () => void
@@ -66,18 +67,16 @@ export function IdeWindowCard({ win, capabilities, busy, onFocus, onClose, onTer
             {busy === 'terminal' ? <Spinner size={12} /> : <Terminal size={13} aria-hidden="true" />}
             <span>Terminal</span>
           </button>
-          {capabilities.close && (
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={busy !== null}
-              title="Close this window. VS Code will ask about unsaved changes."
-              className="flex items-center gap-1 px-2 py-1 rounded bg-tm-2 text-tm-ink-dim hover:bg-tm-3 hover:text-tm-err text-[11px] leading-4 transition-colors border-none cursor-pointer disabled:opacity-40 disabled:cursor-default"
-            >
-              {busy === 'close' ? <Spinner size={12} /> : <X size={13} aria-hidden="true" />}
-              <span>Close</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={!capabilities.close || busy !== null}
+            title={closeUnavailableReason ?? 'Close this window. VS Code will ask about unsaved changes.'}
+            className="flex items-center gap-1 px-2 py-1 rounded bg-tm-2 text-tm-ink-dim hover:bg-tm-3 hover:text-tm-err text-[11px] leading-4 transition-colors border-none cursor-pointer disabled:opacity-40 disabled:cursor-default"
+          >
+            {busy === 'close' ? <Spinner size={12} /> : <X size={13} aria-hidden="true" />}
+            <span>Close</span>
+          </button>
         </div>
       </div>
     </article>

@@ -13,9 +13,9 @@ export function isAccessibilityGranted(prompt: boolean): boolean {
  * per target app and macOS prompts for it on first use; Accessibility is the
  * one the banner in the UI asks for.
  */
-function describeAppleScriptError(text: string): string {
+function describeAppleScriptError(text: string, target: string): string {
   if (text.includes('-1743')) {
-    return 'DevRealm is not allowed to control System Events. Allow it under System Settings > Privacy & Security > Automation.'
+    return `DevRealm is not allowed to control ${target}. Allow it under System Settings > Privacy & Security > Automation.`
   }
   if (text.includes('assistive access') || text.includes('-25211')) {
     return 'DevRealm needs Accessibility permission to see VS Code windows.'
@@ -26,11 +26,12 @@ function describeAppleScriptError(text: string): string {
   return text.replace(/^\d+:\d+:\s*execution error:\s*/, '').trim() || 'AppleScript failed'
 }
 
-function runAppleScript(script: string): Promise<string> {
+/** `target` is the app the script talks to, named in the Automation error so the user knows which toggle to flip. */
+function runAppleScript(script: string, target: string): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile('osascript', ['-e', script], { timeout: SCRIPT_TIMEOUT_MS }, (error, stdout, stderr) => {
       if (error) {
-        reject(new Error(describeAppleScriptError(stderr || error.message)))
+        reject(new Error(describeAppleScriptError(stderr || error.message, target)))
         return
       }
       resolve(stdout.replace(/\n$/, ''))
@@ -48,13 +49,15 @@ tell application "System Events"
   set titles to {}
   repeat with proc in (every process whose bundle identifier is ${quote(bundleId)})
     repeat with win in (every window of proc)
-      set winName to name of win
-      if winName is not missing value and winName is not "" then set end of titles to winName
+      try
+        set winName to name of win
+        if winName is not missing value and winName is not "" then set end of titles to winName
+      end try
     end repeat
   end repeat
   set AppleScript's text item delimiters to linefeed
   return titles as text
-end tell`)
+end tell`, 'System Events')
   return output.split('\n').filter(Boolean)
 }
 
@@ -75,7 +78,7 @@ tell application "System Events"
     end if
   end repeat
   return "missing"
-end tell`)
+end tell`, 'System Events')
   if (result !== 'ok') throw new Error('That VS Code window is no longer open.')
 }
 
@@ -101,11 +104,11 @@ tell application "System Events"
     end if
   end repeat
   return "missing"
-end tell`)
+end tell`, 'System Events')
   if (result === 'missing') throw new Error('That VS Code window is no longer open.')
   if (result !== 'ok') throw new Error('The window has no close button DevRealm can reach.')
 }
 
-export async function quitApp(bundleId: string): Promise<void> {
-  await runAppleScript(`tell application id ${quote(bundleId)} to quit`)
+export async function quitApp(bundleId: string, label: string): Promise<void> {
+  await runAppleScript(`tell application id ${quote(bundleId)} to quit`, label)
 }
