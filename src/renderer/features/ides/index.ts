@@ -1,2 +1,3 @@
 export { IdesScreen } from './components/IdesScreen'
-export type { IdeWindowGroup, IdeWindowView } from './types'
+export { IdesTableScreen } from './components/IdesTableScreen'
+export type { IdeWindowGroup, IdeWindowRow, IdeWindowView } from './types'

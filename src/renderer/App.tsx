@@ -24,6 +24,7 @@ const MarkdownEditorScreen = lazy(() => import('./features/markdown-editor').the
 const MarketplaceScreen = lazy(() => import('./features/marketplace').then(module => ({ default: module.MarketplaceScreen })))
 const TerminalsScreen = lazy(() => import('./features/terminals').then(module => ({ default: module.TerminalsScreen })))
 const IdesScreen = lazy(() => import('./features/ides').then(module => ({ default: module.IdesScreen })))
+const IdesTableScreen = lazy(() => import('./features/ides').then(module => ({ default: module.IdesTableScreen })))
 
 type GlobalSearchItem =
   | { id: string; type: 'workspace'; title: string; subtitle: string; workspaceId: string }
@@ -104,6 +105,7 @@ function MainApp() {
     { id: 'AI Configs', label: 'AI' },
     'Terminals',
     'IDEs',
+    'IDEs 2',
     ...markdownEditors.map(editor => ({
       id: editorTabId(editor.id),
       label: `Editor - ${editor.name}`,
@@ -155,6 +157,10 @@ function MainApp() {
         ) : activeTab === 'IDEs' ? (
           <Suspense fallback={<LoadingView />}>
             <IdesScreen />
+          </Suspense>
+        ) : activeTab === 'IDEs 2' ? (
+          <Suspense fallback={<LoadingView />}>
+            <IdesTableScreen />
           </Suspense>
         ) : activeTab === 'Dashboard' ? (
           selectedWorkspace
