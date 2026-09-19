@@ -26,6 +26,7 @@ import type {
   TerminalOpenRequest,
   TerminalSessionInfo,
 } from '../shared/terminal'
+import type { IdeId, IdeSnapshot, IdeWindowRef } from '../shared/ide'
 
 interface ElectronAPI {
   platform: string
@@ -93,6 +94,14 @@ interface ElectronAPI {
     detach: (id: string) => Promise<void>
     clear: (id: string) => Promise<void>
     onEvent: (cb: (event: ControlEvent) => void) => () => void
+  }
+  ides: {
+    snapshot: () => Promise<IdeSnapshot>
+    focusWindow: (ref: IdeWindowRef) => Promise<void>
+    closeWindow: (ref: IdeWindowRef) => Promise<void>
+    quit: (ide: IdeId) => Promise<void>
+    requestAccessibility: () => Promise<boolean>
+    openAccessibilitySettings: () => Promise<void>
   }
   markdown: {
     readFile: (data: MarkdownFileIdentity) => Promise<MarkdownFileContent>

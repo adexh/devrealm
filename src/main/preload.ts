@@ -73,6 +73,14 @@ const api = {
       return () => ipcRenderer.removeListener('terminals:event', handler)
     },
   },
+  ides: {
+    snapshot: () => ipcRenderer.invoke('ides:snapshot'),
+    focusWindow: (ref: unknown) => ipcRenderer.invoke('ides:focus-window', ref),
+    closeWindow: (ref: unknown) => ipcRenderer.invoke('ides:close-window', ref),
+    quit: (ide: string) => ipcRenderer.invoke('ides:quit', ide),
+    requestAccessibility: () => ipcRenderer.invoke('ides:request-accessibility'),
+    openAccessibilitySettings: () => ipcRenderer.invoke('ides:open-accessibility-settings'),
+  },
   markdown: {
     readFile: (data: { absolutePath: string } | { workspacePath: string; relativePath: string }) => ipcRenderer.invoke('markdown:read-file', data),
     writeFile: (data: ({ absolutePath: string } | { workspacePath: string; relativePath: string }) & { content: string }) => ipcRenderer.invoke('markdown:write-file', data),

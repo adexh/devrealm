@@ -13,6 +13,9 @@ interface UiState {
   setGlobalSearchQuery: (query: string) => void
   setHighlightedIndex: (index: number) => void
   setGlobalSearchError: (error: string | null) => void
+  /** The macOS Accessibility banner on the IDEs tab, once dismissed, stays dismissed. */
+  ideAccessibilityBannerDismissed: boolean
+  dismissIdeAccessibilityBanner: () => void
 }
 
 export const useUiStore = create<UiState>()(
@@ -32,10 +35,12 @@ export const useUiStore = create<UiState>()(
       setGlobalSearchQuery: (query) => set({ globalSearchQuery: query }),
       setHighlightedIndex: (index) => set({ highlightedIndex: index }),
       setGlobalSearchError: (error) => set({ globalSearchError: error }),
+      ideAccessibilityBannerDismissed: false,
+      dismissIdeAccessibilityBanner: () => set({ ideAccessibilityBannerDismissed: true }),
     }),
     {
       name: 'ui-settings',
-      partialize: (state) => ({ dark: state.dark }),
+      partialize: (state) => ({ dark: state.dark, ideAccessibilityBannerDismissed: state.ideAccessibilityBannerDismissed }),
     }
   )
 )
