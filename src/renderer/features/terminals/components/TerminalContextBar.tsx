@@ -82,8 +82,8 @@ export function TerminalContextBar({ onNewShell }: { onNewShell: () => void }) {
         <button
           type="button"
           onClick={onNewShell}
-          disabled={!activeWorkspaceId}
-          className="flex items-center gap-1.5 px-3 py-1 bg-tm-4 text-tm-ink-strong text-[13px] leading-[18px] font-semibold rounded hover:bg-tm-5 disabled:opacity-40 transition-colors border-none cursor-pointer"
+          title={activeWorkspaceId ? 'New shell in this repo' : 'New shell in your home directory'}
+          className="flex items-center gap-1.5 px-3 py-1 bg-tm-4 text-tm-ink-strong text-[13px] leading-[18px] font-semibold rounded hover:bg-tm-5 transition-colors border-none cursor-pointer"
         >
           <Plus size={16} aria-hidden="true" />
           <span>New Shell</span>

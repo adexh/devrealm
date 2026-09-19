@@ -1,6 +1,7 @@
-import { FolderOpen, Terminal } from 'lucide-react'
+import { FolderOpen, Home, Terminal } from 'lucide-react'
 import { useWorkspaceStore } from '../../../stores/workspaceStore'
 import { useTerminalStore } from '../../../stores/terminalStore'
+import { HOME_WORKSPACE_ID } from '../constants'
 
 /**
  * The landing state. Nothing is scoped until a workspace is chosen, so the
@@ -11,6 +12,7 @@ export function WorkspacePicker() {
   const repos = useWorkspaceStore(state => state.repos)
   const sessions = useTerminalStore(state => state.sessions)
   const setActiveWorkspace = useTerminalStore(state => state.setActiveWorkspace)
+  const openHomeSession = useTerminalStore(state => state.openHomeSession)
 
   return (
     <div className="flex-1 min-h-0 bg-tm-0 overflow-y-auto scrollbar-thin">
@@ -21,6 +23,22 @@ export function WorkspacePicker() {
             Terminals, sessions and repos are all scoped to one workspace at a time.
           </p>
         </div>
+
+        <button
+          type="button"
+          onClick={() => void openHomeSession()}
+          className="w-full text-left p-3 rounded bg-tm-1 hover:bg-tm-2 border border-tm-line/40 transition-colors cursor-pointer flex items-center justify-between gap-2"
+        >
+          <span className="flex items-center gap-2 min-w-0">
+            <Home size={16} className="text-tm-ink-dim shrink-0" aria-hidden="true" />
+            <span className="text-[13px] leading-[18px] font-semibold text-tm-ink">
+              Shell in your home directory
+            </span>
+          </span>
+          <span className="font-mono text-[10px] leading-[14px] px-1.5 rounded bg-tm-2 text-tm-ink-dim shrink-0">
+            {sessions.filter(session => session.workspaceId === HOME_WORKSPACE_ID).length || '⌘T'}
+          </span>
+        </button>
 
         {workspaces.length === 0 ? (
           <p className="text-[13px] leading-5 text-tm-ink-dim">

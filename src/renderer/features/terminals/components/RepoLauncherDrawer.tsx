@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { FolderTree, Lightbulb, Search } from 'lucide-react'
 import { useLaunchTargets } from '../hooks/useLaunchTargets'
 import { useTerminalStore } from '../../../stores/terminalStore'
+import { HOME_WORKSPACE_ID } from '../constants'
 import type { DrawerFilter, LaunchTarget } from '../types'
 import { RepoTargetRow } from './RepoTargetRow'
 
@@ -83,6 +84,10 @@ export function RepoLauncherDrawer({ onLaunch }: { onLaunch: (target: LaunchTarg
         {!activeWorkspaceId ? (
           <p className="px-2 py-6 text-[12px] leading-4 text-tm-ink-dim text-center">
             Select a workspace to see its repos.
+          </p>
+        ) : activeWorkspaceId === HOME_WORKSPACE_ID ? (
+          <p className="px-2 py-6 text-[12px] leading-4 text-tm-ink-dim text-center">
+            Home shells belong to no workspace. Pick one above to launch from its repos.
           </p>
         ) : targets.length === 0 ? (
           <p className="px-2 py-6 text-[12px] leading-4 text-tm-ink-dim text-center">

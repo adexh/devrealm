@@ -30,6 +30,7 @@ export function TerminalsScreen() {
   const closeSession = useTerminalStore(state => state.closeSession)
   const focusSession = useTerminalStore(state => state.focusSession)
   const toggleDrawer = useTerminalStore(state => state.toggleDrawer)
+  const openHomeSession = useTerminalStore(state => state.openHomeSession)
   const paneIds = useTerminalStore(state => state.paneIds)
   const maximized = useTerminalStore(state => state.maximized)
   const pendingPane = useTerminalStore(state => state.pendingPane)
@@ -84,9 +85,12 @@ export function TerminalsScreen() {
     })
   }, [openSession])
 
-  /** New Shell: another shell in the current repo, else open the launcher. */
+  /** New Shell: another in the current repo, else the launcher, else home. */
   const newShell = useCallback(() => {
-    if (!activeWorkspaceId) return
+    if (!activeWorkspaceId) {
+      void openHomeSession()
+      return
+    }
     if (!activeSession) {
       if (!drawerOpen) toggleDrawer()
       return
@@ -97,7 +101,7 @@ export function TerminalsScreen() {
       repoName: activeSession.repoName,
       cwd: activeSession.cwd,
     })
-  }, [activeWorkspaceId, activeSession, drawerOpen, toggleDrawer, openSession])
+  }, [activeWorkspaceId, activeSession, drawerOpen, toggleDrawer, openSession, openHomeSession])
 
   useTerminalShortcuts(newShell)
 

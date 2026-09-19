@@ -122,8 +122,16 @@ async function main() {
   check('11 a shell that flooded while detached is not frozen', afterFlood.includes('NOT_FROZEN'))
   await b.control('close', { id: bigId })
 
+  const homeSession = await b.control('open', {
+    workspaceId: '__home__', repoId: null, repoName: 'home', title: 'home',
+    cwd: '', cols: 80, rows: 24,
+  })
+  check('12 an empty cwd opens in the home directory',
+        homeSession.result?.cwd === os.homedir(), homeSession.result?.cwd)
+  await b.control('close', { id: homeSession.result.id })
+
   const closed = await b.control('close', { id })
-  check('12 close tears the session down', closed.ok === true)
+  check('13 close tears the session down', closed.ok === true)
   b.close()
   process.kill(daemon.pid, 'SIGTERM')
   // Wait for it to go before deleting its data dir: the daemon rewrites the

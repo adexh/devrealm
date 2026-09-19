@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { TerminalSessionInfo } from '../../shared/terminal'
 import { useWorkspaceStore } from './workspaceStore'
-import { DRAWER_WIDTH, RAIL_WIDTH } from '../features/terminals/constants'
+import { DRAWER_WIDTH, HOME_WORKSPACE_ID, HOME_WORKSPACE_NAME, RAIL_WIDTH } from '../features/terminals/constants'
 import type { DrawerFilter, SessionStat, TerminalSession } from '../features/terminals/types'
 import * as terminalsIpc from '../features/terminals/ipc/terminals'
 
@@ -41,6 +41,7 @@ interface TerminalState {
   refresh: () => Promise<void>
   openSession: (input: OpenSessionInput) => Promise<void>
   openRepoSession: (input: OpenSessionInput) => Promise<void>
+  openHomeSession: () => Promise<void>
   closeSession: (id: string) => Promise<void>
   focusSession: (id: string) => void
   renameSession: (id: string, title: string) => Promise<void>
@@ -74,6 +75,9 @@ function shortenHome(absolutePath: string): string {
  */
 function toViewSession(info: TerminalSessionInfo): TerminalSession {
   const workspace = useWorkspaceStore.getState().workspaces.find(item => item.id === info.workspaceId)
+  const workspaceName = info.workspaceId === HOME_WORKSPACE_ID
+    ? HOME_WORKSPACE_NAME
+    : (workspace?.name ?? 'Workspace')
   const stats: SessionStat[] = [
     { label: info.shell.split('/').pop() ?? info.shell, tone: 'dim' },
     { label: `pid ${info.pid}`, tone: 'dim' },
@@ -81,7 +85,7 @@ function toViewSession(info: TerminalSessionInfo): TerminalSession {
 
   return {
     ...info,
-    workspaceName: workspace?.name ?? 'Workspace',
+    workspaceName,
     state: info.exitCode === null ? 'running' : (info.exitCode === 0 ? 'exited' : 'failed'),
     statusLabel: info.exitCode !== null && info.exitCode !== 0 ? `EXIT ${info.exitCode}` : undefined,
     subtitle: shortenHome(info.cwd),
@@ -158,7 +162,8 @@ export const useTerminalStore = create<TerminalState>()(
 
           // A persisted workspace may have been removed since last run.
           const knownWorkspaces = useWorkspaceStore.getState().workspaces
-          const workspaceStillExists = knownWorkspaces.some(item => item.id === activeWorkspaceId)
+          const workspaceStillExists = activeWorkspaceId === HOME_WORKSPACE_ID ||
+            knownWorkspaces.some(item => item.id === activeWorkspaceId)
           const workspaceId = workspaceStillExists ? activeWorkspaceId : null
 
           const inScope = sessions.filter(session => session.workspaceId === workspaceId)
@@ -230,6 +235,16 @@ export const useTerminalStore = create<TerminalState>()(
           activeSessionId: newest.id,
           paneIds: [newest.id],
           error: null,
+        })
+      },
+
+      /** An empty cwd tells the daemon to use the home directory. */
+      openHomeSession: async () => {
+        await get().openSession({
+          workspaceId: HOME_WORKSPACE_ID,
+          repoId: null,
+          repoName: HOME_WORKSPACE_NAME.toLowerCase(),
+          cwd: '',
         })
       },
 

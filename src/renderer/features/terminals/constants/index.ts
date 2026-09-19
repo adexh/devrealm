@@ -47,3 +47,10 @@ export const IGNORED_DIR_NAMES = [
 
 export const RAIL_WIDTH = { min: 180, max: 460, default: 256 } as const
 export const DRAWER_WIDTH = { min: 200, max: 520, default: 288 } as const
+
+/**
+ * Scope for shells that belong to no workspace. Not a real workspace id, so it
+ * never collides with one from the store.
+ */
+export const HOME_WORKSPACE_ID = '__home__'
+export const HOME_WORKSPACE_NAME = 'Home'

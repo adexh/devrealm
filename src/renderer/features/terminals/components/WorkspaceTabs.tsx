@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { useWorkspaceStore } from '../../../stores/workspaceStore'
 import { useTerminalStore } from '../../../stores/terminalStore'
+import { HOME_WORKSPACE_ID, HOME_WORKSPACE_NAME } from '../constants'
 import { CloseWorkspaceModal } from './CloseWorkspaceModal'
 
 /**
@@ -20,12 +21,21 @@ export function WorkspaceTabs() {
   const closeWorkspace = useTerminalStore(state => state.closeWorkspace)
   const [confirming, setConfirming] = useState<{ id: string; name: string; count: number } | null>(null)
 
-  const open = workspaces
-    .map(workspace => ({
-      workspace,
-      openCount: sessions.filter(session => session.workspaceId === workspace.id).length,
+  const scopes = [
+    ...workspaces.map(workspace => ({
+      id: workspace.id,
+      name: workspace.name,
+      hint: workspace.rootPath ?? workspace.name,
+    })),
+    { id: HOME_WORKSPACE_ID, name: HOME_WORKSPACE_NAME, hint: 'Shells outside any workspace' },
+  ]
+
+  const open = scopes
+    .map(scope => ({
+      scope,
+      openCount: sessions.filter(session => session.workspaceId === scope.id).length,
     }))
-    .filter(entry => entry.openCount > 0 || entry.workspace.id === activeWorkspaceId)
+    .filter(entry => entry.openCount > 0 || entry.scope.id === activeWorkspaceId)
 
   if (open.length === 0) return null
 
@@ -40,19 +50,19 @@ export function WorkspaceTabs() {
 
   return (
     <div className="flex items-center gap-1 overflow-x-auto scrollbar-none min-w-0">
-      {open.map(({ workspace, openCount }) => {
-        const active = workspace.id === activeWorkspaceId
+      {open.map(({ scope, openCount }) => {
+        const active = scope.id === activeWorkspaceId
 
         return (
           <div
-            key={workspace.id}
-            title={workspace.rootPath ?? workspace.name}
-            onClick={() => setActiveWorkspace(workspace.id)}
+            key={scope.id}
+            title={scope.hint}
+            onClick={() => setActiveWorkspace(scope.id)}
             className={active
               ? 'group flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded bg-tm-3 text-tm-ink-strong text-[12px] leading-4 font-semibold border-b-2 border-tm-ok shrink-0 cursor-pointer'
               : 'group flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded bg-transparent text-tm-ink-soft hover:text-tm-ink-strong hover:bg-tm-1 text-[12px] leading-4 border-b-2 border-transparent shrink-0 cursor-pointer'}
           >
-            <span className="truncate max-w-40">{workspace.name}</span>
+            <span className="truncate max-w-40">{scope.name}</span>
             {openCount > 0 && (
               <span className="font-mono text-[10px] leading-[14px] px-1 rounded bg-tm-2 text-tm-ok shrink-0">
                 {openCount}
@@ -60,10 +70,10 @@ export function WorkspaceTabs() {
             )}
             <button
               type="button"
-              title={`Close ${workspace.name}`}
+              title={`Close ${scope.name}`}
               onClick={event => {
                 event.stopPropagation()
-                requestClose(workspace.id, workspace.name, openCount)
+                requestClose(scope.id, scope.name, openCount)
               }}
               className={active
                 ? 'flex items-center justify-center w-4 h-4 rounded text-tm-ink-dim hover:text-tm-err shrink-0 bg-transparent border-none cursor-pointer'
