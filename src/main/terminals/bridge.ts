@@ -41,7 +41,7 @@ export async function attachSession(
   sessionId: string,
   cols: number,
   rows: number
-): Promise<AttachResult> {
+): Promise<AttachResult | null> {
   detachSession(sessionId)
   const generation = nextGeneration(sessionId)
 
@@ -50,12 +50,16 @@ export async function attachSession(
     params: { id: sessionId, cols, rows },
   })
 
-  // Superseded while the daemon was answering. Undo the attach it just made
-  // rather than wire up a pane that is no longer on screen.
+  // Superseded while the daemon was answering, which StrictMode's
+  // mount-unmount-mount makes routine. Undo only this attachment, by ref: a
+  // session-wide detach here would take down the newer one that replaced it.
+  // Returning null rather than throwing keeps a normal remount from surfacing
+  // as an IPC error.
   if (attachGenerations.get(sessionId) !== generation) {
     daemonClient.releaseRef(result.ref)
-    void daemonClient.control({ op: 'detach', params: { id: sessionId } }).catch(() => {})
-    throw new Error('Attach superseded')
+    void daemonClient.control({ op: 'detach', params: { id: sessionId, ref: result.ref } })
+      .catch(() => { /* the daemon may already have dropped it */ })
+    return null
   }
 
   const { port1, port2 } = new MessageChannelMain()

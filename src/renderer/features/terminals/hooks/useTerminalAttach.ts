@@ -65,8 +65,6 @@ export function useTerminalAttach(sessionId: string, onError: (message: string) 
     })
 
     attachSession(sessionId, size.cols, size.rows).catch((error: unknown) => {
-      // A fast tab switch supersedes its own attach. Expected, not a failure.
-      if (error instanceof Error && error.message === 'Attach superseded') return
       onError(error instanceof Error ? error.message : 'Could not attach to the shell')
     })
 

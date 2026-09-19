@@ -157,7 +157,7 @@ export class Connection {
       case 'attach':
         return this.attach(request.params.id, request.params.cols, request.params.rows)
       case 'detach':
-        this.detachSession(request.params.id)
+        this.detachSession(request.params.id, request.params.ref)
         return null
       case 'clear':
         this.registry.get(request.params.id)?.clearScrollback()
@@ -204,9 +204,17 @@ export class Connection {
     throw new Error('No terminal refs available on this connection')
   }
 
-  private detachSession(sessionId: string): void {
+  /**
+   * Drops attachments for a session, or just the one named by `only`.
+   *
+   * The narrow form matters for an attach that lost a race: it must remove its
+   * own attachment without touching the newer one that replaced it, which a
+   * session-wide detach would also take down.
+   */
+  private detachSession(sessionId: string, only?: number): void {
     for (const [ref, attachment] of this.attachments) {
       if (attachment.sessionId !== sessionId) continue
+      if (only !== undefined && ref !== only) continue
       attachment.unsubscribe()
       this.attachments.delete(ref)
     }

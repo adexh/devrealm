@@ -17,7 +17,8 @@ export function renameSession(id: string, title: string): Promise<void> {
   return window.electronAPI.terminals.rename({ id, title })
 }
 
-export function attachSession(id: string, cols: number, rows: number): Promise<AttachResult> {
+/** Resolves null when a newer attach for the same session superseded this one. */
+export function attachSession(id: string, cols: number, rows: number): Promise<AttachResult | null> {
   return window.electronAPI.terminals.attach({ id, cols, rows })
 }
 

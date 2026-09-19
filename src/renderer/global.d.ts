@@ -89,7 +89,7 @@ interface ElectronAPI {
     open: (request: TerminalOpenRequest) => Promise<TerminalSessionInfo>
     close: (id: string) => Promise<void>
     rename: (data: { id: string; title: string }) => Promise<void>
-    attach: (data: { id: string; cols: number; rows: number }) => Promise<AttachResult>
+    attach: (data: { id: string; cols: number; rows: number }) => Promise<AttachResult | null>
     detach: (id: string) => Promise<void>
     clear: (id: string) => Promise<void>
     onEvent: (cb: (event: ControlEvent) => void) => () => void

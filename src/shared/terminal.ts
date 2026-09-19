@@ -33,7 +33,7 @@ export type ControlOp =
   | { op: 'close'; params: { id: string } }
   | { op: 'rename'; params: { id: string; title: string } }
   | { op: 'attach'; params: { id: string; cols: number; rows: number } }
-  | { op: 'detach'; params: { id: string } }
+  | { op: 'detach'; params: { id: string; ref?: number } }
   | { op: 'clear'; params: { id: string } }
   | { op: 'shutdown' }
 
