@@ -21,15 +21,3 @@ export type IdeActionState = {
   /** The window id, or the IDE id for quit. */
   targetId: string
 }
-
-/** A window as the table shows it: the workspace becomes a column, not a heading. */
-export type IdeWindowRow = IdeWindowView & {
-  workspaceName: string
-}
-
-export type IdeSortColumn = 'window' | 'title' | 'workspace' | 'path'
-
-export type IdeSortState = {
-  column: IdeSortColumn
-  direction: 'asc' | 'desc'
-}

@@ -18,9 +18,8 @@ function message(error: unknown, fallback: string): string {
 }
 
 /**
- * Everything an IDEs screen needs except the layout. Two screens present the
- * same windows differently, and they must behave identically for the
- * comparison between them to be about the presentation alone.
+ * The IDEs screen's state and every action it offers, kept out of the
+ * component so the screen reads as layout alone.
  */
 export type IdeWorkbench = {
   snapshot: IdeSnapshot | null
