@@ -179,34 +179,24 @@ asks again under its own name.
 
 ## 5. Renderer
 
-Standard feature layout under `src/renderer/features/ides/`. There are two
-screens over the same data, behind the **IDEs** and **IDEs 2** tabs, so the two
-layouts can be judged on real windows. Everything but the window list itself is
-shared, and the shared parts are what keep the comparison about presentation:
+Standard feature layout under `src/renderer/features/ides/`. `IdesScreen` is
+layout only; `useIdeWorkbench` holds the poll (via `useIdeSnapshot`), the
+groups (via `useIdeGroups`, one group per workspace that has a window), the
+action state and every handler. The screen renders:
 
 ```
-useIdeWorkbench      the poll, the groups, action state and every handler
-IdeScreenChrome      summary, breakdown, banner, notices, quit modal, loading
-  ├─ IdesScreen      IdeWorkspaceGroup → IdeWindowCard, grouped by workspace
-  └─ IdesTableScreen useIdeWindowRows → IdeWindowTable, one flat sortable table
-
 IdeSummaryBar        counts, CPU, memory, captured-ago, Refresh, Quit, breakdown toggle
 IdeUsageBreakdown    per-kind table, collapsed by default
 AccessibilityBanner  macOS only, dismissible, persisted in uiStore
+IdeWorkspaceGroup    header, IdeWindowCard × n
 IdeEmptyState        not installed / not running
 QuitIdeModal         confirmation
 ```
 
-The table turns the workspace from a heading into a column and adds sorting on
-window, workspace, editor and path. Unsorted it keeps the card order, so the
-same windows appear in the same sequence on both tabs until a header is
-clicked; a third click on a header returns to that order. Cards are capped at
-`max-w-5xl`; the table runs full width, which is most of what the comparison
-is about.
-
-**IDEs 2 is a temporary comparison tab.** When one layout wins, delete the
-other screen and its components, and `IdeScreenChrome` and `useIdeWorkbench`
-can be folded back into the survivor if nothing else uses them.
+A table layout was tried beside the cards, one flat sortable list with the
+workspace as a column, and the cards were kept: grouping by workspace is what
+turns eight windows into two or three projects at a glance, and a table
+flattens that away.
 
 The workbench palette (`tm-*` tokens) is used so the tab reads as a sibling of
 Terminals. Window ids are `folder:<path>` when resolved and `title:<title>`
