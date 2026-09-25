@@ -45,7 +45,7 @@ interface TerminalState {
   openHomeSession: () => Promise<void>
   closeSession: (id: string) => Promise<void>
   focusSession: (id: string) => void
-  renameSession: (id: string, title: string) => Promise<void>
+  renameSession: (id: string, title: string) => string | null
   clearActiveTerminal: () => Promise<void>
   toggleSplit: () => void
   choosePaneSession: (id: string) => void
@@ -94,10 +94,21 @@ function toViewSession(info: TerminalSessionInfo): TerminalSession {
   }
 }
 
-/** Auto-names a tab after its repo, suffixing when the repo already has tabs. */
-function nextTitle(sessions: TerminalSession[], repoName: string): string {
-  const sameRepo = sessions.filter(session => session.repoName === repoName)
-  return sameRepo.length === 0 ? repoName : `${repoName} ${sameRepo.length + 1}`
+function titleTaken(sessions: TerminalSession[], workspaceId: string, title: string, exceptId?: string): boolean {
+  const wanted = title.toLowerCase()
+  return sessions.some(session =>
+    session.workspaceId === workspaceId &&
+    session.id !== exceptId &&
+    session.title.toLowerCase() === wanted
+  )
+}
+
+function nextTitle(sessions: TerminalSession[], workspaceId: string, repoName: string): string {
+  let title = repoName
+  for (let suffix = 2; titleTaken(sessions, workspaceId, title); suffix++) {
+    title = `${repoName} ${suffix}`
+  }
+  return title
 }
 
 /** Set once the daemon feed is wired, so repeated init() calls do not stack listeners. */
@@ -212,7 +223,7 @@ export const useTerminalStore = create<TerminalState>()(
             workspaceId: input.workspaceId,
             repoId: input.repoId,
             repoName: input.repoName,
-            title: nextTitle(get().sessions, input.repoName),
+            title: nextTitle(get().sessions, input.workspaceId, input.repoName),
             cwd: input.cwd,
             cols: 80,
             rows: 24,
@@ -368,19 +379,25 @@ export const useTerminalStore = create<TerminalState>()(
 
       toggleMaximized: () => set({ maximized: !get().maximized }),
 
-      renameSession: async (id, title) => {
+      renameSession: (id, title) => {
         const trimmed = title.trim()
-        if (!trimmed) return
+        const { sessions } = get()
+        const target = sessions.find(session => session.id === id)
+        if (!target) return 'That terminal is gone'
+        if (!trimmed) return 'Name cannot be empty'
+        if (titleTaken(sessions, target.workspaceId, trimmed, id)) {
+          return `"${trimmed}" is already used in this workspace`
+        }
         set({
-          sessions: get().sessions.map(session =>
+          sessions: sessions.map(session =>
             session.id === id ? { ...session, title: trimmed } : session
           ),
         })
-        try {
-          await terminalsIpc.renameSession(id, trimmed)
-        } catch (error) {
-          set({ error: message(error, 'Could not rename the tab') })
-        }
+        terminalsIpc.renameSession(id, trimmed).catch(error => {
+          set({ error: message(error, 'Could not rename the terminal') })
+          void get().refresh()
+        })
+        return null
       },
 
       /** Kills every shell in a workspace but stays in it, now empty. */

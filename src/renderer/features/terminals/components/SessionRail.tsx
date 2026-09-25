@@ -48,7 +48,7 @@ export function SessionRail({ onQuickSwitch }: { onQuickSwitch: () => void }) {
             session={session}
             active={session.id === activeSessionId}
             onFocus={() => focusSession(session.id)}
-            onRename={title => void renameSession(session.id, title)}
+            onRename={title => renameSession(session.id, title)}
           />
         ))}
       </div>

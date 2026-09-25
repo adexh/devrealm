@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { TerminalSession } from '../types'
+import { SessionContextMenu } from './SessionContextMenu'
 import { StateChip } from './StateChip'
 import { StateDot } from './StateDot'
 
@@ -25,20 +26,44 @@ export function SessionCard({ session, active, onFocus, onRename }: {
   session: TerminalSession
   active: boolean
   onFocus: () => void
-  onRename: (title: string) => void
+  onRename: (title: string) => string | null
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(session.title)
+  const [renameError, setRenameError] = useState<string | null>(null)
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
 
-  function commit() {
+  function startEditing() {
+    setDraft(session.title)
+    setRenameError(null)
+    setEditing(true)
+  }
+
+  function stopEditing() {
     setEditing(false)
-    if (draft !== session.title) onRename(draft)
+    setRenameError(null)
+  }
+
+  function commit(keepOpenOnError: boolean) {
+    const error = draft.trim() === session.title ? null : onRename(draft)
+    if (error && keepOpenOnError) {
+      setRenameError(error)
+      return
+    }
+    stopEditing()
   }
 
   return (
     <div
       onClick={onFocus}
-      onDoubleClick={() => { setDraft(session.title); setEditing(true) }}
+      onDoubleClick={startEditing}
+      onContextMenu={event => {
+        event.preventDefault()
+        setMenu({
+          x: Math.min(event.clientX, window.innerWidth - 140),
+          y: Math.min(event.clientY, window.innerHeight - 48),
+        })
+      }}
       className={active
         ? 'flex flex-col gap-1 p-2 rounded bg-tm-3 shadow-sm cursor-pointer'
         : 'flex flex-col gap-1 p-2 rounded bg-tm-1 hover:bg-tm-2 cursor-pointer transition-colors'}
@@ -50,13 +75,16 @@ export function SessionCard({ session, active, onFocus, onRename }: {
             <input
               autoFocus
               value={draft}
-              onChange={event => setDraft(event.target.value)}
-              onBlur={commit}
+              onChange={event => { setDraft(event.target.value); setRenameError(null) }}
+              onBlur={() => commit(false)}
               onKeyDown={event => {
-                if (event.key === 'Enter') commit()
-                if (event.key === 'Escape') setEditing(false)
+                if (event.key === 'Enter') commit(true)
+                if (event.key === 'Escape') stopEditing()
               }}
+              aria-invalid={renameError !== null}
               onClick={event => event.stopPropagation()}
+              onDoubleClick={event => event.stopPropagation()}
+              onContextMenu={event => event.stopPropagation()}
               className="w-full bg-transparent border-none outline-none font-mono text-[11px] leading-4 text-tm-ink-strong"
             />
           ) : (
@@ -71,6 +99,10 @@ export function SessionCard({ session, active, onFocus, onRename }: {
         <StateChip state={session.state} label={session.statusLabel} />
       </div>
 
+      {renameError && (
+        <p role="alert" className="text-[11px] leading-4 text-tm-err">{renameError}</p>
+      )}
+
       {session.subtitle && (
         <p className="text-[12px] leading-4 text-tm-ink-soft truncate">{session.subtitle}</p>
       )}
@@ -83,6 +115,15 @@ export function SessionCard({ session, active, onFocus, onRename }: {
         ))}
         <span className="shrink-0">{relTime(session.lastActiveAt)}</span>
       </div>
+
+      {menu && (
+        <SessionContextMenu
+          x={menu.x}
+          y={menu.y}
+          onRename={startEditing}
+          onClose={() => setMenu(null)}
+        />
+      )}
     </div>
   )
 }
