@@ -20,6 +20,12 @@ import type {
   AuthUser,
   UpdateCheckResult,
 } from '../shared/types'
+import type {
+  AttachResult,
+  ControlEvent,
+  TerminalOpenRequest,
+  TerminalSessionInfo,
+} from '../shared/terminal'
 
 interface ElectronAPI {
   platform: string
@@ -74,6 +80,19 @@ interface ElectronAPI {
   }
   browse: {
     destDir: () => Promise<string | null>
+  }
+  shell: {
+    openExternal: (url: string) => Promise<void>
+  }
+  terminals: {
+    list: () => Promise<TerminalSessionInfo[]>
+    open: (request: TerminalOpenRequest) => Promise<TerminalSessionInfo>
+    close: (id: string) => Promise<void>
+    rename: (data: { id: string; title: string }) => Promise<void>
+    attach: (data: { id: string; cols: number; rows: number }) => Promise<AttachResult | null>
+    detach: (id: string) => Promise<void>
+    clear: (id: string) => Promise<void>
+    onEvent: (cb: (event: ControlEvent) => void) => () => void
   }
   markdown: {
     readFile: (data: MarkdownFileIdentity) => Promise<MarkdownFileContent>

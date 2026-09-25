@@ -923,6 +923,13 @@ export function registerIpcHandlers() {
     shell.openPath(repoPath);
   });
 
+  // Used by terminal sessions to open a bound dev-server URL in the browser.
+  ipcMain.handle("shell:open-external", async (_, url: string) => {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return;
+    await shell.openExternal(url);
+  });
+
   ipcMain.handle("repos:pull", async (_, repoPath: string) => {
     await simpleGit(repoPath).pull();
   });

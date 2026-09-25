@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "node16",
+    "lib": ["ES2020"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node16",
+    "types": ["node"]
+  },
+  "include": ["src/daemon/**/*", "src/shared/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
