@@ -18,6 +18,7 @@ interface TerminalState {
   /** The workspace the whole screen is scoped to. Null means nothing picked yet. */
   activeWorkspaceId: string | null
   activeSessionId: string | null
+  lastSessionByWorkspace: Record<string, string>
   /** Sessions shown side by side, left to right. One entry, or two when split. */
   paneIds: string[]
   /** A second pane exists but has no session yet, so it shows the chooser. */
@@ -102,6 +103,27 @@ function nextTitle(sessions: TerminalSession[], repoName: string): string {
 /** Set once the daemon feed is wired, so repeated init() calls do not stack listeners. */
 let daemonFeed: (() => void) | null = null
 
+function sessionToRestore(
+  sessions: TerminalSession[],
+  workspaceId: string | null,
+  lastSessionByWorkspace: Record<string, string>,
+): string | null {
+  const inScope = sessions.filter(session => session.workspaceId === workspaceId)
+  const remembered = workspaceId ? lastSessionByWorkspace[workspaceId] : undefined
+  return inScope.find(session => session.id === remembered)?.id ?? inScope[0]?.id ?? null
+}
+
+function rememberFocus(state: TerminalState): Record<string, string> {
+  const live = new Set(state.sessions.map(session => session.id))
+  const next = Object.fromEntries(
+    Object.entries(state.lastSessionByWorkspace).filter(([, id]) => live.has(id))
+  )
+  if (state.activeWorkspaceId && state.activeSessionId) {
+    next[state.activeWorkspaceId] = state.activeSessionId
+  }
+  return next
+}
+
 function message(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
 }
@@ -112,6 +134,7 @@ export const useTerminalStore = create<TerminalState>()(
       sessions: [],
       activeWorkspaceId: null,
       activeSessionId: null,
+      lastSessionByWorkspace: {},
       paneIds: [],
       pendingPane: false,
       error: null,
@@ -127,15 +150,13 @@ export const useTerminalStore = create<TerminalState>()(
       drawerFilter: 'all',
 
       setActiveWorkspace: (workspaceId) => {
-        const { activeSessionId, sessions } = get()
-        const active = sessions.find(session => session.id === activeSessionId)
-        // Focus follows the workspace: a session in another one is not visible
-        // from here, so holding it selected would be a lie.
-        const keep = active && active.workspaceId === workspaceId ? activeSessionId : null
+        const lastSessionByWorkspace = rememberFocus(get())
+        const restored = sessionToRestore(get().sessions, workspaceId, lastSessionByWorkspace)
         set({
           activeWorkspaceId: workspaceId,
-          activeSessionId: keep,
-          paneIds: keep ? [keep] : [],
+          activeSessionId: restored,
+          lastSessionByWorkspace,
+          paneIds: restored ? [restored] : [],
           pendingPane: false,
           drawerQuery: '',
         })
@@ -169,7 +190,7 @@ export const useTerminalStore = create<TerminalState>()(
           const inScope = sessions.filter(session => session.workspaceId === workspaceId)
           const nextActive = inScope.some(session => session.id === activeSessionId)
             ? activeSessionId
-            : (inScope[inScope.length - 1]?.id ?? null)
+            : sessionToRestore(sessions, workspaceId, get().lastSessionByWorkspace)
           const live = new Set(inScope.map(session => session.id))
           const panes = get().paneIds.filter(id => live.has(id))
           set({
@@ -198,6 +219,7 @@ export const useTerminalStore = create<TerminalState>()(
           })
           const { pendingPane, paneIds } = get()
           set({
+            lastSessionByWorkspace: rememberFocus(get()),
             activeWorkspaceId: input.workspaceId,
             activeSessionId: info.id,
             paneIds: pendingPane && paneIds.length === 1 ? [...paneIds, info.id] : [info.id],
@@ -231,6 +253,7 @@ export const useTerminalStore = create<TerminalState>()(
           return
         }
         set({
+          lastSessionByWorkspace: rememberFocus(get()),
           activeWorkspaceId: newest.workspaceId,
           activeSessionId: newest.id,
           paneIds: [newest.id],
@@ -402,6 +425,7 @@ export const useTerminalStore = create<TerminalState>()(
         railOpen: state.railOpen,
         drawerOpen: state.drawerOpen,
         activeWorkspaceId: state.activeWorkspaceId,
+        lastSessionByWorkspace: state.lastSessionByWorkspace,
         splitRatio: state.splitRatio,
         railWidth: state.railWidth,
         drawerWidth: state.drawerWidth,
