@@ -23,6 +23,7 @@
     "smoke:main": "npm run build:main && npm run build:daemon && electron tests/smoke/main.js",
     "smoke": "npm run smoke:panes && npm run smoke:daemon && npm run smoke:main && npm run smoke:renderer && npm run smoke:ides",
     "smoke:panes": "node tests/smoke/terminalLayout.js",
+    "integration:panes": "npm run build && node tests/integration/terminalPanes.js",
     "smoke:renderer": "npm run build && electron tests/smoke/renderer.js",
     "smoke:ides": "npm run build:main && electron tests/smoke/ides.js"
   },

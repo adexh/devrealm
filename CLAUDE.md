@@ -25,6 +25,7 @@ npm run lint:daemon  # tsc -p tsconfig.daemon.json --noEmit
 # Smoke tests (no unit test suite)
 npm run smoke          # all of the below
 npm run smoke:panes    # the terminal pane split tree and tab order, plain Node
+npm run integration:panes  # the real app driven over CDP: drags, sashes, typing, workspaces (add -- --dev for StrictMode)
 npm run smoke:daemon   # drives the real PTY daemon over its socket
 npm run smoke:main     # drives the main-process DaemonClient under Electron
 npm run smoke:renderer # drives a real BrowserWindow with the real preload
