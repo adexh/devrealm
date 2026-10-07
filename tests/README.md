@@ -20,15 +20,37 @@ tests/
     paths.js        repo root, the Electron binary, build outputs
     daemonHome.js   a throwaway DEVREALM_DAEMON_HOME per run
     daemonClient.js a client for the daemon's wire protocol
+    appDriver.js    launches the built app and drives its window over CDP
   smoke/
     daemon.js       persistence, snapshots, flow control, env stripping
     main.js         spawn, connect, stale-daemon replacement
     renderer.js     the MessagePort data plane, split panes, theming
     ides.js         title parsing, --status parsing, process classification, live snapshot
     terminalLayout.js  drag-and-drop splits: drop zones, the pane tree, tab order
+  integration/
+    terminalPanes.js   the Terminals screen's split panes, end to end in the app
   fixtures/
     ides/           `code --status` output and a `ps` listing captured from VS Code 1.107
 ```
+
+## Integration
+
+```bash
+npm run integration:panes            # against the production build
+npm run integration:panes -- --dev   # against Vite, so StrictMode double-mounts
+```
+
+Launches the real app and drives its window over the Chrome DevTools Protocol
+with real mouse and keyboard input: drags tabs onto pane edges and tab bars,
+pulls sashes, types into shells and checks the daemon got it, switches
+workspaces and reloads. HTML drag and drop runs through
+`Input.setInterceptDrags`, so no OS drag session is ever started.
+
+The app gets a temporary `HOME` seeded with two workspaces of its own and a
+temporary daemon home, so it never reads your workspaces or touches your
+shells. Screenshots of a few states, and of any section that fails, land in
+`tests/integration/screenshots/` (git-ignored). Run `--dev` at least once after
+touching attach or remount code: the doubled-output bug only showed up there.
 
 Each suite runs its own daemon against a temporary `DEVREALM_DAEMON_HOME`.
 Never point one at the real home: the stale-build check would replace the
