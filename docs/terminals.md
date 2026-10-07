@@ -311,6 +311,11 @@ snapshot, no output and swallowed every keystroke. `onSessionPort` keeps one
 window listener and a subscriber per session id, and closes a port only when
 nothing is waiting for that session.
 
+**Terminal shortcuts listen in the capture phase.** xterm turns Alt+arrows into
+escape sequences and stops the event, so a bubbling window listener never saw
+`⌥↑` / `⌥↓` while a terminal had focus. `useTerminalShortcuts` captures and stops
+only the keys it handles.
+
 **Flush pending output before a new client subscribes.** Output reaches the
 headless buffer at once but clients only on the next coalescing flush, so a
 client attaching inside that window got the same bytes in its snapshot and
