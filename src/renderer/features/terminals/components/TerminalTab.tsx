@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { useTerminalStore } from '../../../stores/terminalStore'
 import { useSessionDrag } from '../hooks/useSessionDrag'
@@ -16,9 +16,15 @@ export function TerminalTab({ session, groupId, active, onFocus, onClose }: {
   const draggedSessionId = useTerminalStore(state => state.draggedSessionId)
   const dropDraggedOnTab = useTerminalStore(state => state.dropDraggedOnTab)
   const [insert, setInsert] = useState<'before' | 'after' | null>(null)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (active) ref.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [active])
 
   return (
     <div
+      ref={ref}
       {...drag}
       onClick={onFocus}
       onDragOver={event => {
