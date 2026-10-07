@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { TerminalSession } from '../types'
 import { useTerminalAttach } from '../hooks/useTerminalAttach'
 import { XtermHost } from '../../../components/XtermHost'
+import { openExternalUrl } from '../ipc/external'
 
 /**
  * The live terminal for one session. Keyed by session id by its parent, so
@@ -18,7 +19,7 @@ export function TerminalSurface({ session }: { session: TerminalSession }) {
         <div className="px-3 py-2 bg-tm-2 text-tm-err text-[12px] leading-4 shrink-0">{error}</div>
       )}
       <div className="flex-1 min-h-0 p-2">
-        <XtermHost onReady={onReady} onResize={onResize} />
+        <XtermHost onReady={onReady} onResize={onResize} onOpenLink={url => void openExternalUrl(url)} />
       </div>
     </div>
   )

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Terminal, type ITheme } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import '@xterm/xterm/css/xterm.css'
 
@@ -45,6 +46,10 @@ export function readTerminalTheme(scope: Element): ITheme {
   }
 }
 
+function isLinkClick(event: MouseEvent): boolean {
+  return window.electronAPI.platform === 'darwin' ? event.metaKey : event.ctrlKey
+}
+
 export type XtermHandle = {
   terminal: Terminal
   fit: () => { cols: number; rows: number }
@@ -56,24 +61,30 @@ export type XtermHandle = {
  * The terminal deliberately lives outside React state: output never triggers a
  * render, and only the visible session has a live instance at all.
  */
-export function XtermHost({ readOnly = false, scrollback = 5000, fontSize = 12, onReady, onResize }: {
+export function XtermHost({ readOnly = false, scrollback = 5000, fontSize = 12, onReady, onResize, onOpenLink }: {
   readOnly?: boolean
   scrollback?: number
   fontSize?: number
   onReady: (handle: XtermHandle) => void | (() => void)
   onResize?: (cols: number, rows: number) => void
+  onOpenLink?: (url: string) => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const onReadyRef = useRef(onReady)
   const onResizeRef = useRef(onResize)
+  const onOpenLinkRef = useRef(onOpenLink)
   onReadyRef.current = onReady
   onResizeRef.current = onResize
+  onOpenLinkRef.current = onOpenLink
 
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
 
     let appliedTheme = readTerminalTheme(container)
+    const openLink = (event: MouseEvent, url: string) => {
+      if (isLinkClick(event)) onOpenLinkRef.current?.(url)
+    }
     const terminal = new Terminal({
       theme: appliedTheme,
       fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
@@ -84,10 +95,12 @@ export function XtermHost({ readOnly = false, scrollback = 5000, fontSize = 12, 
       scrollback,
       allowProposedApi: true,
       convertEol: false,
+      linkHandler: { activate: openLink },
     })
 
     const fitAddon = new FitAddon()
     terminal.loadAddon(fitAddon)
+    terminal.loadAddon(new WebLinksAddon(openLink))
     terminal.open(container)
 
     // WebGL is the single biggest renderer win; fall back silently if the
