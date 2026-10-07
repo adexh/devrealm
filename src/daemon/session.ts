@@ -160,6 +160,9 @@ export class Session {
   }
 
   subscribe(subscriber: Subscriber): Attachment {
+    // Pending output is already in the headless buffer, so the new client's
+    // snapshot holds it. Flushed now, it goes only to the clients that lack it.
+    this.flush()
     const debt = { unacked: 0 }
     this.subscribers.set(subscriber, debt)
 
