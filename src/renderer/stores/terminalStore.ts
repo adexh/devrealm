@@ -2,10 +2,28 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { TerminalSessionInfo } from '../../shared/terminal'
 import { useWorkspaceStore } from './workspaceStore'
-import { DRAWER_WIDTH, HOME_WORKSPACE_ID, HOME_WORKSPACE_NAME, RAIL_WIDTH } from '../features/terminals/constants'
+import { DRAWER_WIDTH, HOME_WORKSPACE_ID, HOME_WORKSPACE_NAME, RAIL_WIDTH, SPLIT_RATIO } from '../features/terminals/constants'
 import type { DrawerFilter, SessionStat, TerminalSession } from '../features/terminals/types'
 import * as terminalsIpc from '../features/terminals/ipc/terminals'
 import { shortenHome } from '../utils/paths'
+import {
+  activateSession,
+  allSessionIds,
+  closeGroup,
+  dropOnGroup,
+  dropOnTab,
+  groupOf,
+  insertSession,
+  mergeGroups,
+  orderByIds,
+  paneGroups,
+  reconcileLayout,
+  removeSession,
+  resizeSplit,
+  splitGroup,
+  type PaneNode,
+  type PaneZone,
+} from './terminalLayout'
 
 type OpenSessionInput = {
   workspaceId: string
@@ -20,10 +38,8 @@ interface TerminalState {
   activeWorkspaceId: string | null
   activeSessionId: string | null
   lastSessionByWorkspace: Record<string, string>
-  /** Sessions shown side by side, left to right. One entry, or two when split. */
-  paneIds: string[]
-  /** A second pane exists but has no session yet, so it shows the chooser. */
-  pendingPane: boolean
+  layouts: Record<string, PaneNode>
+  draggedSessionId: string | null
   error: string | null
   ready: boolean
 
@@ -33,8 +49,6 @@ interface TerminalState {
   drawerWidth: number
   /** Hides both drawers to give the terminal the whole window. */
   maximized: boolean
-  /** Width of the left pane when split, as a fraction. */
-  splitRatio: number
   drawerQuery: string
   drawerFilter: DrawerFilter
 
@@ -50,7 +64,11 @@ interface TerminalState {
   clearActiveTerminal: () => Promise<void>
   toggleSplit: () => void
   choosePaneSession: (id: string) => void
-  setSplitRatio: (ratio: number) => void
+  closePane: (groupId: string) => void
+  resizePane: (splitId: string, ratio: number) => void
+  setDraggedSession: (id: string | null) => void
+  dropDraggedOnPane: (groupId: string, zone: PaneZone) => void
+  dropDraggedOnTab: (groupId: string, targetId: string | null, after: boolean) => void
   toggleMaximized: () => void
   killWorkspaceSessions: (workspaceId: string) => Promise<void>
   closeWorkspace: (workspaceId: string) => Promise<void>
@@ -110,14 +128,43 @@ function nextTitle(sessions: TerminalSession[], workspaceId: string, repoName: s
 /** Set once the daemon feed is wired, so repeated init() calls do not stack listeners. */
 let daemonFeed: (() => void) | null = null
 
+function scopedIds(sessions: TerminalSession[], workspaceId: string | null): string[] {
+  return sessions.filter(session => session.workspaceId === workspaceId).map(session => session.id)
+}
+
 function sessionToRestore(
   sessions: TerminalSession[],
   workspaceId: string | null,
   lastSessionByWorkspace: Record<string, string>,
+  layouts: Record<string, PaneNode>,
 ): string | null {
-  const inScope = sessions.filter(session => session.workspaceId === workspaceId)
+  const inScope = orderByIds(
+    sessions.filter(session => session.workspaceId === workspaceId),
+    allSessionIds(workspaceId ? layouts[workspaceId] ?? null : null),
+  )
   const remembered = workspaceId ? lastSessionByWorkspace[workspaceId] : undefined
   return inScope.find(session => session.id === remembered)?.id ?? inScope[0]?.id ?? null
+}
+
+function arrange(
+  layouts: Record<string, PaneNode>,
+  sessions: TerminalSession[],
+  workspaceId: string | null,
+  activeId: string | null,
+): Record<string, PaneNode> {
+  if (!workspaceId) return layouts
+  const { [workspaceId]: saved, ...rest } = layouts
+  const layout = reconcileLayout(saved ?? null, scopedIds(sessions, workspaceId), activeId)
+  if (!layout) return rest
+  return { ...rest, [workspaceId]: activeId && groupOf(layout, activeId) ? activateSession(layout, activeId) : layout }
+}
+
+export function selectLayout(state: Pick<TerminalState, 'layouts' | 'activeWorkspaceId'>): PaneNode | null {
+  return state.activeWorkspaceId ? state.layouts[state.activeWorkspaceId] ?? null : null
+}
+
+function withLayout(state: TerminalState, layout: PaneNode): Pick<TerminalState, 'layouts'> {
+  return state.activeWorkspaceId ? { layouts: { ...state.layouts, [state.activeWorkspaceId]: layout } } : { layouts: state.layouts }
 }
 
 function rememberFocus(state: TerminalState): Record<string, string> {
@@ -142,8 +189,8 @@ export const useTerminalStore = create<TerminalState>()(
       activeWorkspaceId: null,
       activeSessionId: null,
       lastSessionByWorkspace: {},
-      paneIds: [],
-      pendingPane: false,
+      layouts: {},
+      draggedSessionId: null,
       error: null,
       ready: false,
 
@@ -152,19 +199,18 @@ export const useTerminalStore = create<TerminalState>()(
       drawerOpen: true,
       drawerWidth: DRAWER_WIDTH.default,
       maximized: false,
-      splitRatio: 0.5,
       drawerQuery: '',
       drawerFilter: 'all',
 
       setActiveWorkspace: (workspaceId) => {
+        const { sessions, layouts } = get()
         const lastSessionByWorkspace = rememberFocus(get())
-        const restored = sessionToRestore(get().sessions, workspaceId, lastSessionByWorkspace)
+        const restored = sessionToRestore(sessions, workspaceId, lastSessionByWorkspace, layouts)
         set({
           activeWorkspaceId: workspaceId,
           activeSessionId: restored,
           lastSessionByWorkspace,
-          paneIds: restored ? [restored] : [],
-          pendingPane: false,
+          layouts: arrange(layouts, sessions, workspaceId, restored),
           drawerQuery: '',
         })
       },
@@ -194,19 +240,16 @@ export const useTerminalStore = create<TerminalState>()(
             knownWorkspaces.some(item => item.id === activeWorkspaceId)
           const workspaceId = workspaceStillExists ? activeWorkspaceId : null
 
-          const inScope = sessions.filter(session => session.workspaceId === workspaceId)
-          const nextActive = inScope.some(session => session.id === activeSessionId)
+          const { layouts, lastSessionByWorkspace } = get()
+          const nextActive = sessions.some(session => session.id === activeSessionId && session.workspaceId === workspaceId)
             ? activeSessionId
-            : sessionToRestore(sessions, workspaceId, get().lastSessionByWorkspace)
-          const live = new Set(inScope.map(session => session.id))
-          const panes = get().paneIds.filter(id => live.has(id))
+            : sessionToRestore(sessions, workspaceId, lastSessionByWorkspace, layouts)
           set({
             sessions,
             error: null,
             activeWorkspaceId: workspaceId,
             activeSessionId: nextActive,
-            paneIds: panes.length > 0 ? panes : (nextActive ? [nextActive] : []),
-            pendingPane: get().pendingPane && panes.length === 1,
+            layouts: arrange(layouts, sessions, workspaceId, nextActive),
           })
         } catch (error) {
           set({ error: message(error, 'Could not reach the terminal daemon') })
@@ -224,13 +267,16 @@ export const useTerminalStore = create<TerminalState>()(
             cols: 80,
             rows: 24,
           })
-          const { pendingPane, paneIds } = get()
+          const state = get()
+          const layout = selectLayout(state)
+          const target = input.workspaceId === state.activeWorkspaceId
+            ? paneGroups(layout).find(group => group.sessionIds.length === 0) ?? groupOf(layout, state.activeSessionId) ?? paneGroups(layout)[0]
+            : undefined
           set({
-            lastSessionByWorkspace: rememberFocus(get()),
+            lastSessionByWorkspace: rememberFocus(state),
             activeWorkspaceId: input.workspaceId,
             activeSessionId: info.id,
-            paneIds: pendingPane && paneIds.length === 1 ? [...paneIds, info.id] : [info.id],
-            pendingPane: false,
+            ...(layout && target ? withLayout(state, insertSession(layout, target.id, info.id)) : {}),
             error: null,
           })
           await get().refresh()
@@ -263,7 +309,7 @@ export const useTerminalStore = create<TerminalState>()(
           lastSessionByWorkspace: rememberFocus(get()),
           activeWorkspaceId: newest.workspaceId,
           activeSessionId: newest.id,
-          paneIds: [newest.id],
+          layouts: arrange(get().layouts, get().sessions, newest.workspaceId, newest.id),
           error: null,
         })
       },
@@ -286,15 +332,20 @@ export const useTerminalStore = create<TerminalState>()(
         const scopeIndex = sessions
           .filter(session => session.workspaceId === activeWorkspaceId)
           .findIndex(session => session.id === id)
+        const layout = selectLayout(get())
+        const after = layout ? removeSession(layout, id) : null
+        // Focus stays in the pane it was in, on the neighbouring tab, as in VS Code.
+        const owner = groupOf(layout, id)
         const nextActive = activeSessionId === id
-          ? (inScope[scopeIndex]?.id ?? inScope[scopeIndex - 1]?.id ?? inScope[inScope.length - 1]?.id ?? null)
+          ? (paneGroups(after).find(group => group.id === owner?.id)?.activeId ?? paneGroups(after).find(group => group.activeId)?.activeId ??
+            inScope[scopeIndex]?.id ?? inScope[scopeIndex - 1]?.id ?? inScope[inScope.length - 1]?.id ?? null)
           : activeSessionId
-        const panes = get().paneIds.filter(paneId => paneId !== id)
+        const layouts = { ...get().layouts }
+        if (activeWorkspaceId && after) layouts[activeWorkspaceId] = after
         set({
           sessions: remaining,
           activeSessionId: nextActive,
-          paneIds: panes.length > 0 ? panes : (nextActive ? [nextActive] : []),
-          pendingPane: get().pendingPane && panes.length === 1,
+          layouts: arrange(layouts, remaining, activeWorkspaceId, nextActive),
         })
         try {
           await terminalsIpc.closeSession(id)
@@ -307,20 +358,9 @@ export const useTerminalStore = create<TerminalState>()(
         }
       },
 
-      /**
-       * Picking a session from the rail or the tab bar replaces whichever pane
-       * has focus, so a split stays split instead of collapsing on every click.
-       */
       focusSession: (id) => {
-        const { paneIds, activeSessionId } = get()
-        if (paneIds.includes(id)) {
-          set({ activeSessionId: id })
-          return
-        }
-        const focusedIndex = Math.max(0, paneIds.indexOf(activeSessionId ?? ''))
-        const next = paneIds.length > 0 ? [...paneIds] : [id]
-        if (paneIds.length > 0) next[focusedIndex] = id
-        set({ activeSessionId: id, paneIds: next })
+        const { layouts, sessions, activeWorkspaceId } = get()
+        set({ activeSessionId: id, layouts: arrange(layouts, sessions, activeWorkspaceId, id) })
       },
 
       clearActiveTerminal: async () => {
@@ -339,31 +379,62 @@ export const useTerminalStore = create<TerminalState>()(
        * extra click, and an existing session is often what you want beside the
        * current one.
        *
-       * Toggling off only unsplits the view. Killing a shell from what reads as
-       * a layout control would be a nasty surprise, so the session stays in the
-       * tab bar.
+       * Toggling off merges every pane's tabs back into one. Killing a shell
+       * from what reads as a layout control would be a nasty surprise.
        */
       toggleSplit: () => {
-        const { paneIds, activeSessionId, pendingPane } = get()
-        if (paneIds.length > 1) {
-          const keep = activeSessionId && paneIds.includes(activeSessionId) ? activeSessionId : paneIds[0]
-          set({ paneIds: [keep], activeSessionId: keep, pendingPane: false })
-          return
-        }
-        if (pendingPane) {
-          set({ pendingPane: false })
-          return
-        }
-        if (paneIds.length === 1) set({ pendingPane: true })
+        const state = get()
+        const layout = selectLayout(state)
+        const groups = paneGroups(layout)
+        if (!layout) return
+        if (groups.length > 1) set(withLayout(state, mergeGroups(layout, state.activeSessionId)))
+        else set(withLayout(state, splitGroup(layout, groups[0].id, null, 'right')))
       },
 
       choosePaneSession: (id) => {
-        const { paneIds, pendingPane } = get()
-        if (!pendingPane || paneIds.includes(id)) return
-        set({ paneIds: [...paneIds, id], pendingPane: false, activeSessionId: id })
+        const state = get()
+        const layout = selectLayout(state)
+        const waiting = paneGroups(layout).find(group => group.sessionIds.length === 0)
+        if (!layout || !waiting) return
+        set({ ...withLayout(state, dropOnGroup(layout, id, waiting.id, 'center')), activeSessionId: id })
       },
 
-      setSplitRatio: (ratio) => set({ splitRatio: Math.min(0.8, Math.max(0.2, ratio)) }),
+      closePane: (groupId) => {
+        const state = get()
+        const layout = selectLayout(state)
+        if (!layout) return
+        const next = closeGroup(layout, groupId)
+        set({ ...withLayout(state, next), activeSessionId: groupOf(next, state.activeSessionId)?.activeId ?? state.activeSessionId })
+      },
+
+      resizePane: (splitId, ratio) => {
+        const state = get()
+        const layout = selectLayout(state)
+        if (!layout) return
+        set(withLayout(state, resizeSplit(layout, splitId, Math.min(SPLIT_RATIO.max, Math.max(SPLIT_RATIO.min, ratio)))))
+      },
+
+      setDraggedSession: (id) => set({ draggedSessionId: id }),
+
+      dropDraggedOnPane: (groupId, zone) => {
+        const state = get()
+        const layout = selectLayout(state)
+        const dragged = state.draggedSessionId
+        set({ draggedSessionId: null })
+        if (!layout || !dragged) return
+        const next = dropOnGroup(layout, dragged, groupId, zone)
+        if (next !== layout) set({ ...withLayout(state, next), activeSessionId: dragged })
+      },
+
+      dropDraggedOnTab: (groupId, targetId, after) => {
+        const state = get()
+        const layout = selectLayout(state)
+        const dragged = state.draggedSessionId
+        set({ draggedSessionId: null })
+        if (!layout || !dragged) return
+        const next = dropOnTab(layout, dragged, groupId, targetId, after)
+        if (next !== layout) set({ ...withLayout(state, next), activeSessionId: dragged })
+      },
 
       setRailWidth: (width) => set({
         railWidth: Math.min(RAIL_WIDTH.max, Math.max(RAIL_WIDTH.min, Math.round(width))),
@@ -424,12 +495,11 @@ export const useTerminalStore = create<TerminalState>()(
       setDrawerFilter: (filter) => set({ drawerFilter: filter }),
 
       focusAdjacentSession: (offset) => {
-        const { sessions, activeSessionId, activeWorkspaceId } = get()
-        const siblings = sessions.filter(session => session.workspaceId === activeWorkspaceId)
-        const index = siblings.findIndex(session => session.id === activeSessionId)
+        const state = get()
+        const siblings = groupOf(selectLayout(state), state.activeSessionId)?.sessionIds ?? []
+        const index = siblings.indexOf(state.activeSessionId ?? '')
         if (index === -1) return
-        const next = siblings[(index + offset + siblings.length) % siblings.length]
-        if (next) get().focusSession(next.id)
+        get().focusSession(siblings[(index + offset + siblings.length) % siblings.length])
       },
     }),
     {
@@ -438,8 +508,9 @@ export const useTerminalStore = create<TerminalState>()(
         railOpen: state.railOpen,
         drawerOpen: state.drawerOpen,
         activeWorkspaceId: state.activeWorkspaceId,
-        lastSessionByWorkspace: state.lastSessionByWorkspace,
-        splitRatio: state.splitRatio,
+        // Recorded on every save, not only when leaving a workspace, so a restart comes back to the same tab.
+        lastSessionByWorkspace: rememberFocus(state),
+        layouts: state.layouts,
         railWidth: state.railWidth,
         drawerWidth: state.drawerWidth,
       }),

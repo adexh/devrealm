@@ -1,5 +1,5 @@
 import { Columns2, FolderTree, PanelLeft, Plus } from 'lucide-react'
-import { useTerminalStore } from '../../../stores/terminalStore'
+import { selectLayout, useTerminalStore } from '../../../stores/terminalStore'
 import { BUSY_STATES } from '../constants'
 import { WorkspaceTabs } from './WorkspaceTabs'
 
@@ -12,7 +12,7 @@ export function TerminalContextBar({ onNewShell }: { onNewShell: () => void }) {
   const toggleDrawer = useTerminalStore(state => state.toggleDrawer)
   const toggleSplit = useTerminalStore(state => state.toggleSplit)
   const activeSessionId = useTerminalStore(state => state.activeSessionId)
-  const split = useTerminalStore(state => state.paneIds.length > 1 || state.pendingPane)
+  const split = useTerminalStore(state => selectLayout(state)?.kind === 'split')
 
   // Every count is scoped to the selected workspace, like the rest of the screen.
   const scoped = sessions.filter(session => session.workspaceId === activeWorkspaceId)
@@ -71,7 +71,7 @@ export function TerminalContextBar({ onNewShell }: { onNewShell: () => void }) {
           type="button"
           onClick={toggleSplit}
           disabled={!activeSessionId}
-          title={split ? 'Close the second pane' : 'Split into two panes'}
+          title={split ? 'Merge every pane back into one' : 'Split the pane. Or drag a tab onto a pane edge.'}
           className={split
             ? 'flex items-center gap-1 px-2 py-1 bg-tm-3 text-tm-ink-strong rounded text-[12px] leading-4 transition-colors border-none cursor-pointer'
             : 'flex items-center gap-1 px-2 py-1 bg-tm-2 text-tm-ink-dim hover:text-tm-ink-strong hover:bg-tm-3 rounded text-[12px] leading-4 transition-colors border-none cursor-pointer disabled:opacity-40'}

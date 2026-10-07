@@ -47,11 +47,35 @@ focus the drawer filter, `Esc` leave maximized, `⌘⇧T` reach the Terminals ta
 
 ### Panes
 
-`⌘\` opens a second pane that asks what goes in it rather than spawning a shell:
-a new one in the current repo, or any running session in this workspace not
-already on screen. Launching from the repo drawer fills a waiting pane too.
-Toggling split off only unsplits the view; the shell stays in the tab bar,
-because killing a process from a layout control would be a nasty surprise.
+Panes work like VS Code's editor groups: each pane has its own tab bar and
+owns its shells, and every shell in the workspace is a tab in exactly one
+pane. Drag a tab over a pane: the outer tenth of each side splits a new pane
+off with that tab in it, left and right in the side thirds and up or down in
+the middle third, and anywhere else moves the tab into that pane. A highlight
+previews where it lands. Dropping on another tab inserts beside it, on empty
+tab bar space appends. A pane closes when its last tab leaves; a pane's only
+tab cannot split from itself, as in VS Code. `⌥↑` / `⌥↓` cycle the focused
+pane's tabs.
+
+The layout is a binary split tree of tab groups
+(`src/renderer/stores/terminalLayout.ts`), kept per workspace and persisted, so
+splits and tab order survive switching workspaces and restarts. It is
+reconciled with the daemon on every refresh: dead shells drop out, new ones
+join the focused pane. Every pane renders as an absolutely placed sibling.
+Nesting the DOM like the tree would remount a terminal, and so re-attach it,
+each time its pane moved a level. Drop targets are overlays mounted only while
+a drag is on, so xterm never sees the drag and stays clickable otherwise.
+
+`⌘\` splits the focused pane with an empty one that asks what goes in it
+rather than spawning a shell: a new one in the current repo, or a running tab
+not currently showing. Launching from the repo drawer fills a waiting pane too.
+With more than one pane, `⌘\` merges every pane's tabs back into one, and a
+pane's × moves its tabs into the first remaining pane. No layout control ever
+closes a shell, because killing a process from one would be a nasty surprise.
+
+Switching workspaces restores the tab last focused there, else the first one
+in its list. The focused tab per workspace is saved on every change, not only
+when leaving, so a restart lands on it too.
 
 Clearing wipes the daemon's headless buffer as well as the visible one, or the
 snapshot would restore it on the next attach. Maximizing hides both drawers;
@@ -287,6 +311,13 @@ snapshot, no output and swallowed every keystroke. `onSessionPort` keeps one
 window listener and a subscriber per session id, and closes a port only when
 nothing is waiting for that session.
 
+**Flush pending output before a new client subscribes.** Output reaches the
+headless buffer at once but clients only on the next coalescing flush, so a
+client attaching inside that window got the same bytes in its snapshot and
+again as data. Moving a pane re-attaches right after a resize, and StrictMode
+attaches twice, so zsh's resize redraw showed up twice. `Session.subscribe`
+flushes first; smoke check 13 covers it.
+
 **The daemon sends the snapshot before the attach response.** Frames can arrive
 for a ref whose handler is not registered yet. `DaemonClient` queues per ref,
 bounded, and drains on registration.
@@ -371,8 +402,7 @@ If you ever need to force it: `pkill -f dist/daemon/main.js`.
 - **Activity detection.** Session state is `running` or `exited`; there is no
   "working" or "needs your input", so the left rail is navigation, not a glance.
 - **Dev-server port detection.** `boundPort` exists on the type and is never set.
-- **More than two panes.** The pane list is general, but only one split is
-  offered, and panes cannot be stacked vertically.
+- **Dragging from the rail or the repo drawer.** Only tabs drag.
 - **Per-tab diff, secrets injection, isolated worktrees, session replay.**
 - `detachAll()` in `bridge.ts` is defined and never called.
 

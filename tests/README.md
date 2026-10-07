@@ -5,7 +5,8 @@ under the real Electron binary, so a broken native `node-pty` build fails them
 too.
 
 ```bash
-npm run smoke            # all three
+npm run smoke            # all of them
+npm run smoke:panes      # the terminal pane split tree and tab order, plain Node
 npm run smoke:daemon     # the daemon over its socket
 npm run smoke:main       # the main-process DaemonClient under Electron
 npm run smoke:renderer   # a real BrowserWindow with the real preload
@@ -24,6 +25,7 @@ tests/
     main.js         spawn, connect, stale-daemon replacement
     renderer.js     the MessagePort data plane, split panes, theming
     ides.js         title parsing, --status parsing, process classification, live snapshot
+    terminalLayout.js  drag-and-drop splits: drop zones, the pane tree, tab order
   fixtures/
     ides/           `code --status` output and a `ps` listing captured from VS Code 1.107
 ```
