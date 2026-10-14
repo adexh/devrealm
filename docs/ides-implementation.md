@@ -77,8 +77,9 @@ from VS Code's state under that name: `folderPath` is the file's directory
 ### 2.3 Resource usage
 
 `ps -axww -o pid=,ppid=,pcpu=,rss=,command=` once per snapshot. The VS Code main
-process is the `.../Contents/MacOS/Electron` (or `code`, `Code.exe`) row without
-`--type=`. Descendants are classified from the command line:
+process is the `.../Contents/MacOS/Code` row (`.../MacOS/Electron` before VS Code
+1.141 renamed it; `code` or `Code.exe` elsewhere) without `--type=`. Matching only
+the old name made every VS Code from 1.141 on read as not running. Descendants are classified from the command line:
 
 | Kind | Match |
 |---|---|
