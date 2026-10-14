@@ -144,6 +144,11 @@ function processChecks() {
   const single = parseWin32ProcessJson(JSON.stringify({ ProcessId: 5, ParentProcessId: 1, WorkingSetSize: 0, CommandLine: 'x' }))
   check('win32: a single object is one row', single.length === 1)
   const nullCpu = findIdeProcessTree([{ pid: 1, ppid: 0, cpu: null, rssKb: 1, command: 'unrelated' }, { pid: 2, ppid: 0, cpu: null, rssKb: 3, command: '/x/Visual Studio Code.app/Contents/MacOS/Electron' }], VSCODE_PROCESS_MATCHER)
+  const renamed = findIdeProcessTree([
+    { pid: 3, ppid: 1, cpu: 1, rssKb: 1, command: '/Applications/Visual Studio Code.app/Contents/MacOS/Code /Applications/Visual Studio Code.app/Contents/Resources/app/out/cli.js --status' },
+    { pid: 4, ppid: 1, cpu: 1, rssKb: 1, command: '/Applications/Visual Studio Code.app/Contents/MacOS/Code' },
+  ], VSCODE_PROCESS_MATCHER)
+  check('ps: the main process is found under its 1.141 name, Code', renamed.main && renamed.main.pid === 4)
   check('ps: cpu total is null when no row has a sample', nullCpu.usage && nullCpu.usage.cpuPercent === null && nullCpu.usage.memoryBytes === 3 * 1024)
 }
 
@@ -153,6 +158,10 @@ async function liveChecks() {
   console.log(`live: installed=${snapshot.installed} running=${snapshot.running} source=${snapshot.source} windows=${snapshot.windows.length} took ${snapshot.durationMs}ms`)
   for (const warning of snapshot.warnings) console.log(`live: warning: ${warning}`)
   check('live: snapshot has the shape the renderer expects', Array.isArray(snapshot.windows) && typeof snapshot.capturedAt === 'number')
+  const { execFileSync } = require('child_process')
+  const visible = process.platform === 'darwin' &&
+    execFileSync('ps', ['-axo', 'command'], { encoding: 'utf8' }).split('\n').some(line => /Visual Studio Code\.app\/Contents\/MacOS\//.test(line))
+  if (visible) check('live: a VS Code that ps can see is reported as running', snapshot.running)
   if (!snapshot.running) {
     console.log('skip live window checks: VS Code is not running')
     return

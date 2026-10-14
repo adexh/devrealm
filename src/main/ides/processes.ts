@@ -158,7 +158,8 @@ export const VSCODE_PROCESS_MATCHER: IdeProcessMatcher = {
   isMain: (command) => {
     if (command.includes('--type=') || command.includes('cli.js')) return false
     if (process.platform === 'darwin') {
-      return /Visual Studio Code\.app\/Contents\/MacOS\/Electron(\s|$)/.test(command)
+      // VS Code 1.141 renamed its executable from Electron to Code.
+      return /Visual Studio Code\.app\/Contents\/MacOS\/(Electron|Code)(\s|$)/.test(command)
     }
     if (process.platform === 'win32') {
       // Win32_Process quotes the executable, so the name may be followed by a quote.
