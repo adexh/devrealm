@@ -126,6 +126,34 @@ scaffold.applyScaffold([{ path: '.claude/hooks/check.sh', content: '#!/bin/sh\ne
 check('apply: scripts with a shebang are executable, other files are not',
   (fs.statSync(path.join(hookTarget, '.claude/hooks/check.sh')).mode & 0o111) !== 0 && (fs.statSync(path.join(hookTarget, '.claude/hooks/notes.md')).mode & 0o111) === 0)
 
+const outside = path.join(tmp, 'outside')
+write(outside, 'id_rsa', 'PRIVATE KEY')
+write(outside, 'dir/keep.txt', 'mine')
+const linked = path.join(tmp, 'linked')
+write(linked, 'AGENTS.md', '# agents\n')
+fs.symlinkSync('AGENTS.md', path.join(linked, 'CLAUDE.md'))
+fs.symlinkSync(path.join(outside, 'id_rsa'), path.join(linked, '.mcp.json'))
+fs.mkdirSync(path.join(linked, '.claude'))
+fs.symlinkSync(path.join(outside, 'id_rsa'), path.join(linked, '.claude/settings.json'))
+const linkedFiles = scaffold.captureFiles(linked)
+check('capture: a symlink inside the folder is read', linkedFiles.some(file => file.path === 'CLAUDE.md' && file.content === '# agents\n'))
+check('capture: symlinks leaving the folder are never read', !linkedFiles.some(file => file.content.includes('PRIVATE KEY')))
+
+const trap = path.join(tmp, 'trap')
+fs.mkdirSync(trap)
+fs.symlinkSync(path.join(outside, 'dir'), path.join(trap, '.claude'))
+fs.symlinkSync(path.join(outside, 'id_rsa'), path.join(trap, 'CLAUDE.md'))
+fs.symlinkSync(path.join(outside, 'missing.txt'), path.join(trap, 'AGENTS.md'))
+const trapped = scaffold.applyScaffold([
+  { path: '.claude/keep.txt', content: 'overwritten' },
+  { path: '.claude/new.md', content: 'planted' },
+  { path: 'CLAUDE.md', content: 'overwritten' },
+  { path: 'AGENTS.md', content: 'planted' },
+], trap, 'override')
+check('apply: never writes through a symlink that leaves the target',
+  trapped.written.length === 0 && read(outside, 'dir/keep.txt') === 'mine' && read(outside, 'id_rsa') === 'PRIVATE KEY' &&
+  !fs.existsSync(path.join(outside, 'dir/new.md')) && !fs.existsSync(path.join(outside, 'missing.txt')))
+
 const home = path.join(tmp, 'home')
 write(home, '.claude/CLAUDE.md', '# Mine\n')
 write(home, '.claude/settings.json', '{}')

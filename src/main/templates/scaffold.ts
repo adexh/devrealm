@@ -60,7 +60,20 @@ function pathFilter(rootPath: string): (relativePath: string) => boolean {
   return (relativePath) => isScaffoldablePath(relativePath) && isUserConfigPath(relativePath);
 }
 
-function readTextFile(absolutePath: string): string | null {
+/** Symlinks may point anywhere, so reads and writes must land inside the root once resolved. */
+function resolvesInside(rootPath: string, absolutePath: string): boolean {
+  let existing = absolutePath;
+  while (!fs.lstatSync(existing, { throwIfNoEntry: false })) existing = path.dirname(existing);
+  try {
+    const relative = path.relative(fs.realpathSync(rootPath), fs.realpathSync(existing));
+    return !relative.startsWith("..") && !path.isAbsolute(relative);
+  } catch {
+    return false;
+  }
+}
+
+function readTextFile(rootPath: string, absolutePath: string): string | null {
+  if (!resolvesInside(rootPath, absolutePath)) return null;
   const stat = fs.statSync(absolutePath);
   if (!stat.isFile() || stat.size > MAX_FILE_BYTES) return null;
   const content = fs.readFileSync(absolutePath, "utf8");
@@ -75,7 +88,7 @@ export function captureFiles(rootPath: string): TemplateFile[] {
   const add = (absolutePath: string) => {
     const relativePath = toPosix(path.relative(rootPath, absolutePath));
     if (!allowed(relativePath)) return;
-    const content = readTextFile(absolutePath);
+    const content = readTextFile(rootPath, absolutePath);
     if (content !== null) files.push({ path: relativePath, content });
   };
 
@@ -129,6 +142,7 @@ export function parseJsonObject(content: string): Record<string, unknown> | null
 
 function planFile(file: TemplateFile, targetPath: string, mode: ScaffoldMode): PlannedWrite {
   const absolutePath = path.join(targetPath, file.path);
+  if (!resolvesInside(targetPath, absolutePath)) return { path: file.path, action: "skip" };
   if (!fs.existsSync(absolutePath)) return { path: file.path, action: "create", content: file.content };
 
   const current = fs.readFileSync(absolutePath, "utf8");
