@@ -1,36 +1,47 @@
+import type { UpdateCheckResult } from '../../shared/types'
 import { Modal, Btn } from './ui'
+import { Spinner } from './Spinner'
 
 export type UpdateState =
-  | { stage: 'checking' }
-  | { stage: 'available'; latestVersion: string }
-  | { stage: 'up-to-date' }
-  | { stage: 'error'; message: string }
+  | { status: 'checking' }
+  | { status: 'installing'; currentVersion: string; latestVersion: string }
+  | UpdateCheckResult
 
 type Props = {
   state: UpdateState
+  onInstall: (currentVersion: string, latestVersion: string) => void
   onClose: () => void
 }
 
-export function UpdateNotificationModal({ state, onClose }: Props) {
-  if (state.stage === 'checking') {
+const canInstallInApp = window.electronAPI.platform !== 'win32'
+
+function VersionRow({ label, version, strong = false }: { label: string; version: string; strong?: boolean }) {
+  return (
+    <div className="flex items-center justify-between text-[13px]">
+      <span className="text-t-ink-soft">{label}</span>
+      <span className={strong ? 'font-mono font-medium text-t-ink' : 'font-mono text-t-ink-soft'}>v{version}</span>
+    </div>
+  )
+}
+
+export function UpdateNotificationModal({ state, onInstall, onClose }: Props) {
+  if (state.status === 'checking') {
     return (
       <Modal title="Check for updates" onClose={onClose} width={420}>
         <div className="flex items-center gap-3 py-1">
-          <svg className="animate-spin w-4 h-4 text-t-accent shrink-0" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-          </svg>
+          <Spinner size={16} />
           <p className="text-[13px] text-t-ink-soft">Checking for updates…</p>
         </div>
       </Modal>
     )
   }
 
-  if (state.stage === 'up-to-date') {
+  if (state.status === 'up-to-date') {
     return (
       <Modal title="Check for updates" onClose={onClose} width={420}>
         <div className="flex flex-col gap-4">
           <p className="text-[13px] text-t-ink-soft leading-relaxed">You're on the latest version.</p>
+          <VersionRow label="Current version" version={state.currentVersion} strong />
           <div className="flex justify-end">
             <Btn onClick={onClose}>Close</Btn>
           </div>
@@ -39,13 +50,34 @@ export function UpdateNotificationModal({ state, onClose }: Props) {
     )
   }
 
-  if (state.stage === 'error') {
+  if (state.status === 'error') {
     return (
-      <Modal title="Update check failed" onClose={onClose} width={420}>
+      <Modal title="Check for updates" onClose={onClose} width={420}>
         <div className="flex flex-col gap-4">
-          <p className="text-[13px] text-t-ink-soft leading-relaxed">{state.message}</p>
-          <div className="flex justify-end">
+          <p className="text-[13px] text-t-ink-soft leading-relaxed wrap-break-word">{state.message}</p>
+          <VersionRow label="Current version" version={state.currentVersion} />
+          <div className="flex justify-end gap-2">
+            <Btn onClick={() => { void window.electronAPI.updater.openReleasePage(); onClose() }}>View on GitHub</Btn>
             <Btn onClick={onClose}>Close</Btn>
+          </div>
+        </div>
+      </Modal>
+    )
+  }
+
+  if (state.status === 'installing') {
+    return (
+      <Modal title={`Updating to v${state.latestVersion}`} onClose={onClose} width={420}>
+        <div className="flex flex-col gap-4">
+          <div className="flex items-start gap-3">
+            <Spinner size={16} />
+            <p className="text-[13px] text-t-ink-soft leading-relaxed">
+              Building the new version. This takes a few minutes, and DevRealm restarts on its own when it's ready.
+              Your terminals keep running through the restart.
+            </p>
+          </div>
+          <div className="flex justify-end">
+            <Btn onClick={onClose}>Hide</Btn>
           </div>
         </div>
       </Modal>
@@ -55,15 +87,23 @@ export function UpdateNotificationModal({ state, onClose }: Props) {
   return (
     <Modal title="Update available" onClose={onClose} width={420}>
       <div className="flex flex-col gap-4">
-        <p className="text-[13px] text-t-ink leading-relaxed">
-          DevRealm <span className="font-medium">{state.latestVersion}</span> is available.
-          Re-run the DevRealm installer to update.
+        <div className="flex flex-col gap-2">
+          <VersionRow label="Current version" version={state.currentVersion} />
+          <VersionRow label="New version" version={state.latestVersion} strong />
+        </div>
+        <p className="text-[12px] text-t-ink-soft leading-relaxed">
+          {canInstallInApp
+            ? 'Update now builds the new version and restarts DevRealm. You can keep working while it builds.'
+            : 'Re-run the DevRealm installer to update.'}
         </p>
         <div className="flex justify-end gap-2">
           <Btn onClick={onClose}>Later</Btn>
-          <Btn primary onClick={() => { void window.electronAPI.updater.openReleasePage(); onClose() }}>
+          <Btn primary={!canInstallInApp} onClick={() => { void window.electronAPI.updater.openReleasePage(); onClose() }}>
             View on GitHub
           </Btn>
+          {canInstallInApp && (
+            <Btn primary onClick={() => onInstall(state.currentVersion, state.latestVersion)}>Update now</Btn>
+          )}
         </div>
       </div>
     </Modal>

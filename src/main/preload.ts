@@ -89,8 +89,9 @@ const api = {
   updater: {
     checkForUpdates: () => ipcRenderer.invoke('updater:check-for-updates'),
     openReleasePage: () => ipcRenderer.invoke('updater:open-release-page'),
-    onUpdateAvailable: (cb: (info: { latestVersion: string }) => void) => {
-      const handler = (_: unknown, info: { latestVersion: string }) => cb(info)
+    install: () => ipcRenderer.invoke('updater:install'),
+    onUpdateAvailable: (cb: (info: { currentVersion: string; latestVersion: string }) => void) => {
+      const handler = (_: unknown, info: { currentVersion: string; latestVersion: string }) => cb(info)
       ipcRenderer.on('updater:update-available', handler)
       return () => ipcRenderer.removeListener('updater:update-available', handler)
     },

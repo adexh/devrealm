@@ -54,6 +54,8 @@ export const LATEST_RELEASE_URL =
 // GitHub API endpoint the update check queries for the latest release tag.
 export const LATEST_RELEASE_API_URL =
   "https://api.github.com/repos/adexh/devrealm/releases/latest";
+// The build-from-source installer, which the in-app update also runs.
+export const INSTALL_SCRIPT_URL = "https://devrealm.in/install.sh";
 
 // MCP registry.
 export const MCP_REGISTRY_SERVERS_URL =
