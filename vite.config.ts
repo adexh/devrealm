@@ -10,6 +10,15 @@ export default defineConfig({
   build: {
     outDir: resolve(__dirname, 'dist/renderer'),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // xterm is shared by the lazy Terminals and Workspace chunks, so
+        // without this it gets hoisted into the entry bundle and every user
+        // pays for a terminal they may never open.
+        manualChunks: (id: string) =>
+          id.includes('node_modules/@xterm/') ? 'xterm' : undefined,
+      },
+    },
   },
   server: {
     port: 5173,

@@ -1,50 +1,40 @@
-import React, { useEffect, useImperativeHandle, useRef } from 'react'
-import { Terminal } from '@xterm/xterm'
-import '@xterm/xterm/css/xterm.css'
+import React, { useImperativeHandle, useRef } from 'react'
+import type { Terminal } from '@xterm/xterm'
+import { XtermHost, type XtermHandle } from '../../../components/XtermHost'
 
 export interface CloneTerminalHandle {
   write: (data: string) => void
   reset: () => void
 }
 
+/**
+ * Read-only view of git clone output.
+ *
+ * Shares the terminal host with the Terminals feature rather than standing up
+ * its own xterm, so theming, addon loading and disposal live in one place.
+ */
 export const CloneTerminal = React.forwardRef<CloneTerminalHandle>((_, ref) => {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const termRef = useRef<Terminal | null>(null)
+  const terminalRef = useRef<Terminal | null>(null)
 
-  useEffect(() => {
-    const term = new Terminal({
-      rows: 9,
-      cols: 60,
-      theme: {
-        background: '#0d1117',
-        foreground: '#c9d1d9',
-        selectionBackground: '#264f78',
-        cursor: '#c9d1d9',
-      },
-      fontFamily: '"Menlo", "Monaco", "Courier New", monospace',
-      fontSize: 11,
-      lineHeight: 1.4,
-      convertEol: false,
-      disableStdin: true,
-      cursorBlink: false,
-      scrollback: 500,
-    })
-    termRef.current = term
-    if (containerRef.current) term.open(containerRef.current)
-    return () => { term.dispose(); termRef.current = null }
-  }, [])
+  function handleReady(handle: XtermHandle) {
+    terminalRef.current = handle.terminal
+    return () => { terminalRef.current = null }
+  }
 
   useImperativeHandle(ref, () => ({
     write: (data) => {
-      if (!termRef.current) return
       // Normalize bare \n to \r\n so newlines render correctly, while leaving
-      // bare \r untouched — git uses \r alone to overwrite the progress line.
-      termRef.current.write(data.replace(/\r?\n/g, '\r\n'))
+      // bare \r untouched, since git uses \r alone to overwrite the progress line.
+      terminalRef.current?.write(data.replace(/\r?\n/g, '\r\n'))
     },
-    reset: () => termRef.current?.reset(),
+    reset: () => terminalRef.current?.reset(),
   }))
 
-  return <div ref={containerRef} className="rounded overflow-hidden border border-t-line" />
+  return (
+    <div className="h-36 rounded overflow-hidden border border-t-line">
+      <XtermHost readOnly scrollback={500} fontSize={11} onReady={handleReady} />
+    </div>
+  )
 })
 
 CloneTerminal.displayName = 'CloneTerminal'

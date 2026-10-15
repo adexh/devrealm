@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "outline": "#8f918c", "surface-container-lowest": "#0e0e0e", "tertiary-container": "#8efa98", "surface": "#131313", "primary-fixed-dim": "#c7c6c3", "secondary-container": "#474746", "on-primary": "#30312e", "on-tertiary": "#003911", "surface-variant": "#353534", "on-surface-variant": "#c5c7c1", "on-secondary-fixed": "#1b1c1c", "tertiary-fixed-dim": "#72dd7e", "tertiary": "#ffffff", "primary": "#ffffff", "on-error-container": "#ffdad6", "background": "#131313", "outline-variant": "#454843", "surface-container-highest": "#353534", "secondary-fixed-dim": "#c8c6c5", "tertiary-fixed": "#8efa98", "on-primary-fixed-variant": "#464744", "primary-container": "#e3e2df", "secondary-fixed": "#e5e2e1", "on-error": "#690005", "on-surface": "#e5e2e1", "surface-container": "#201f1f", "secondary": "#c8c6c5", "surface-dim": "#131313", "on-secondary": "#303030", "on-secondary-fixed-variant": "#474746", "on-background": "#e5e2e1", "inverse-on-surface": "#313030", "error": "#ffb4ab", "on-tertiary-fixed": "#002107", "on-tertiary-container": "#00752a", "inverse-surface": "#e5e2e1", "inverse-primary": "#5e5f5c", "on-secondary-container": "#b7b5b4", "error-container": "#93000a", "surface-container-high": "#2a2a2a", "surface-container-low": "#1c1b1b", "on-primary-container": "#646562", "primary-fixed": "#e3e2df", "surface-bright": "#3a3939", "on-primary-fixed": "#1b1c1a", "surface-tint": "#c7c6c3", "on-tertiary-fixed-variant": "#00531c" }, "borderRadius": { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" }, "spacing": { "gutter": "0.75rem", "space-xl": "1.5rem", "space-xs": "0.25rem", "space-md": "0.75rem", "margin": "1rem", "space-lg": "1rem", "space-sm": "0.5rem" }, "fontFamily": { "body-compact": [ "Inter" ], "display-metric": [ "Inter" ], "mono-badge": [ "JetBrains Mono" ], "stat-counter": [ "Inter" ], "headline-sm": [ "Inter" ], "body-default": [ "Inter" ], "headline-lg": [ "Inter" ], "mono-code": [ "JetBrains Mono" ], "micro-label": [ "Inter" ], "body-medium": [ "Inter" ], "headline-md": [ "Inter" ] }, "fontSize": { "body-compact": [ "12px", { "lineHeight": "16px", "letterSpacing": "0px", "fontWeight": "400" } ], "display-metric": [ "26px", { "lineHeight": "32px", "letterSpacing": "-0.5px", "fontWeight": "600" } ], "mono-badge": [ "10px", { "lineHeight": "14px", "letterSpacing": "0.2px", "fontWeight": "500" } ], "stat-counter": [ "22px", { "lineHeight": "28px", "letterSpacing": "-0.3px", "fontWeight": "600" } ], "headline-sm": [ "13px", { "lineHeight": "18px", "letterSpacing": "-0.15px", "fontWeight": "600" } ], "body-default": [ "13px", { "lineHeight": "20px", "letterSpacing": "0px", "fontWeight": "400" } ], "headline-lg": [ "18px", { "lineHeight": "24px", "letterSpacing": "-0.2px", "fontWeight": "600" } ], "mono-code": [ "11px", { "lineHeight": "16px", "letterSpacing": "0px", "fontWeight": "400" } ], "micro-label": [ "10px", { "lineHeight": "14px", "letterSpacing": "0.6px", "fontWeight": "600" } ], "body-medium": [ "13px", { "lineHeight": "18px", "letterSpacing": "0px", "fontWeight": "500" } ], "headline-md": [ "15px", { "lineHeight": "20px", "letterSpacing": "-0.2px", "fontWeight": "600" } ] } } } };</script></head><body class="bg-background font-body-default text-on-surface antialiased select-none"><header class="fixed top-0 left-0 right-0 z-50 flex flex-col bg-surface-container-lowest border-b border-outline-variant/40"><div class="h-10 px-margin flex items-center justify-between border-b border-outline-variant/20"><div class="flex items-center gap-2 w-20"><span class="w-3 h-3 rounded-full bg-[#ff5f56] inline-block cursor-pointer opacity-90 hover:opacity-100 transition-opacity"></span><span class="w-3 h-3 rounded-full bg-[#ffbd2e] inline-block cursor-pointer opacity-90 hover:opacity-100 transition-opacity"></span><span class="w-3 h-3 rounded-full bg-[#27c93f] inline-block cursor-pointer opacity-90 hover:opacity-100 transition-opacity"></span></div><div class="flex items-center gap-2 text-center"><span class="font-headline-sm text-headline-sm text-on-surface tracking-tight font-semibold">DevRealm</span><span class="font-mono-badge text-mono-badge px-1.5 py-0.5 rounded bg-surface-container text-outline border border-outline-variant/50">v2.4.0-nightly</span></div><div class="w-20 flex justify-end items-center gap-1"><span class="w-2 h-2 rounded-full bg-tertiary-fixed"></span><span class="font-micro-label text-micro-label uppercase text-outline">Synced</span></div></div><div class="h-14 px-margin flex items-center justify-between gap-space-md"><div class="flex items-center gap-space-lg"><div class="flex items-center gap-space-xs px-2 py-1 rounded bg-surface-container border border-outline-variant/30 text-on-surface-variant"><span class="material-symbols-outlined text-[18px] text-primary">terminal</span><span class="font-mono-code text-mono-code text-primary font-medium">devrealm</span></div><nav class="flex items-center gap-1" data-active-classes="bg-surface-container-high text-primary font-semibold border-b-2 border-primary"><a class="px-space-md py-1.5 rounded text-on-surface-variant font-body-medium text-body-medium hover:text-on-surface hover:bg-surface-container transition-all" data-path="dashboard" href="#">Dashboard</a><a class="px-space-md py-1.5 rounded text-on-surface-variant font-body-medium text-body-medium hover:text-on-surface hover:bg-surface-container transition-all" data-path="workspaces" href="#">Workspaces</a><a class="px-space-md py-1.5 rounded text-on-surface-variant font-body-medium text-body-medium hover:text-on-surface hover:bg-surface-container transition-all" data-path="ai-hub" href="#">AI Hub</a><a aria-current="page" class="px-space-md py-1.5 rounded transition-all bg-surface-container-high text-primary font-semibold border-b-2 border-primary" data-path="settings" href="#">Settings</a></nav></div><div class="flex items-center gap-space-md flex-1 max-w-md mx-space-md"><div class="w-full flex items-center gap-2 px-space-md py-1.5 rounded bg-surface-container-low border border-outline-variant/50 focus-within:border-primary transition-all"><span class="material-symbols-outlined text-outline text-[18px]">search</span><input class="w-full bg-transparent border-none outline-none font-body-compact text-body-compact text-on-surface placeholder:text-outline" placeholder="Switch workspace, repo, or file..." type="text"/><kbd class="font-mono-badge text-mono-badge px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant border border-outline-variant border-b-2">⌘K</kbd></div></div><div class="flex items-center gap-space-sm"><button class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all"><span class="material-symbols-outlined text-[18px]">dark_mode</span></button><button class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all"><span class="material-symbols-outlined text-[18px]">notifications</span></button><button class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all"><span class="material-symbols-outlined text-[18px]">settings</span></button><div class="h-4 w-[1px] bg-outline-variant/40 mx-1"></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="w-full pt-24 bg-surface min-h-screen"><div class="flex flex-col w-full">
+<!-- Secondary Context Bar / Terminal Subheader -->
+<section class="w-full bg-surface-container-lowest px-space-md py-space-xs flex items-center justify-between shadow-sm">
+<!-- Left Context & Workspace Indicator -->
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="flex items-center gap-1.5 px-space-sm py-1 bg-surface-container-low rounded">
+<span class="w-2 h-2 rounded-full bg-tertiary-fixed-dim animate-pulse"></span>
+<span class="font-headline-sm text-headline-sm text-on-surface">Terminals</span>
+<span class="text-outline font-mono-code text-mono-code">/</span>
+<span class="font-body-medium text-body-medium text-primary font-semibold">Side Projects</span>
+</div>
+<span class="font-mono-badge text-mono-badge px-2 py-0.5 rounded bg-surface-container text-on-surface-variant">
+        SYNCED • CLUSTER 11434
+      </span>
+</div>
+<!-- Center Stats Strip -->
+<div class="hidden xl:flex items-center gap-space-md font-mono-badge text-mono-badge text-outline">
+<span class="flex items-center gap-1.5 text-on-surface">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary-fixed"></span> 4 active shells
+      </span>
+<span class="text-outline-variant">•</span>
+<span class="text-on-surface-variant">2 running commands</span>
+<span class="text-outline-variant">•</span>
+<span class="text-tertiary-fixed-dim">0 errors</span>
+<span class="text-outline-variant">•</span>
+<span>Node v20.12.2</span>
+<span class="text-outline-variant">•</span>
+<span>Zsh 5.9 (x86_64)</span>
+</div>
+<!-- Right Controls: Rail Toggles & New Shell -->
+<div class="flex items-center gap-1.5">
+<button class="flex items-center gap-1 px-2.5 py-1 bg-surface-container-high text-primary hover:bg-surface-bright rounded text-body-compact font-body-compact transition-colors" id="toggle-sessions">
+<span class="material-symbols-outlined text-[16px]">view_sidebar</span>
+<span>Sessions</span>
+<kbd class="font-mono-badge text-mono-badge px-1 py-0.2 rounded bg-surface-container text-on-surface-variant">⌘1</kbd>
+</button>
+<button class="flex items-center gap-1 px-2.5 py-1 bg-surface-container-high text-primary hover:bg-surface-bright rounded text-body-compact font-body-compact transition-colors" id="toggle-drawer">
+<span class="material-symbols-outlined text-[16px]">account_tree</span>
+<span>Repo Drawer</span>
+<kbd class="font-mono-badge text-mono-badge px-1 py-0.2 rounded bg-surface-container text-on-surface-variant">⌘B</kbd>
+</button>
+<button class="flex items-center gap-1 px-2 py-1 bg-surface-container text-on-surface-variant hover:text-primary hover:bg-surface-container-high rounded text-body-compact font-body-compact transition-colors">
+<span class="material-symbols-outlined text-[16px]">splitscreen</span>
+<kbd class="font-mono-badge text-mono-badge px-1 py-0.2 rounded bg-surface-container-lowest text-outline">⌘\</kbd>
+</button>
+<button class="flex items-center gap-1.5 px-3 py-1 bg-primary text-on-primary font-body-medium text-body-medium rounded hover:bg-primary-fixed transition-colors shadow-sm font-semibold">
+<span class="material-symbols-outlined text-[16px]">add</span>
+<span>New Shell</span>
+<kbd class="font-mono-badge text-mono-badge px-1.5 py-0.2 rounded bg-surface-container-lowest text-primary">⌘T</kbd>
+</button>
+</div>
+</section>
+<!-- Three-Pane Workspace Terminal Workbench -->
+<div class="flex w-full h-[calc(100vh-148px)] overflow-hidden bg-background">
+<!-- LEFT RAIL: SESSIONS (Collapsible) -->
+<aside class="w-64 bg-surface-container-lowest flex flex-col shrink-0 overflow-hidden transition-all duration-200" id="sessions-rail">
+<!-- Rail Header -->
+<div class="h-9 px-space-md bg-surface-container-low flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[15px] text-outline">terminal</span>
+<span class="font-micro-label text-micro-label uppercase tracking-widest text-on-surface-variant">Sessions</span>
+<span class="font-mono-badge text-mono-badge px-1.5 py-0.2 rounded bg-surface-container-highest text-primary font-semibold">4</span>
+</div>
+<button class="text-outline hover:text-on-surface flex items-center">
+<span class="material-symbols-outlined text-[16px]">unfold_less</span>
+</button>
+</div>
+<!-- Session List Groups -->
+<div class="flex-1 overflow-y-auto p-space-xs space-y-3">
+<!-- Group 1: Side Projects (Active) -->
+<div class="space-y-1">
+<div class="flex items-center justify-between px-space-xs py-1 text-on-surface-variant hover:text-primary cursor-pointer">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[14px] text-outline">arrow_drop_down</span>
+<span class="font-headline-sm text-headline-sm text-primary font-semibold">Side Projects</span>
+</div>
+<span class="font-mono-badge text-mono-badge text-outline">2 tabs</span>
+</div>
+<!-- Tab 1: Active dev tab -->
+<div class="group flex flex-col gap-1 p-2 rounded bg-surface-container-high shadow-sm cursor-pointer">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2 min-w-0">
+<span class="w-2 h-2 rounded-full bg-tertiary-fixed animate-ping"></span>
+<span class="font-mono-code text-mono-code text-primary font-medium truncate">vault: dev</span>
+</div>
+<span class="font-mono-badge text-mono-badge px-1.5 py-0.2 rounded bg-surface-container text-tertiary-fixed">
+                RUNNING
+              </span>
+</div>
+<p class="font-body-compact text-body-compact text-on-surface-variant truncate">Next.js 16.3.3 (turbo)</p>
+<div class="flex items-center justify-between pt-1 font-mono-badge text-mono-badge text-outline">
+<span class="text-tertiary-fixed-dim">CPU: 1.4%</span>
+<span>RAM: 94 MB</span>
+<span class="text-on-surface-variant">port :3000</span>
+</div>
+</div>
+<!-- Tab 2: Idle build tab -->
+<div class="group flex flex-col gap-1 p-2 rounded bg-surface-container-low hover:bg-surface-container cursor-pointer transition-colors">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2 min-w-0">
+<span class="w-1.5 h-1.5 rounded-full bg-outline"></span>
+<span class="font-mono-code text-mono-code text-on-surface truncate">md-notes: build</span>
+</div>
+<span class="font-mono-badge text-mono-badge px-1 py-0.2 rounded bg-surface-container-highest text-outline">
+                IDLE
+              </span>
+</div>
+<div class="flex items-center justify-between pt-0.5 font-mono-badge text-mono-badge text-outline">
+<span class="text-tertiary-fixed-dim">exit: 0</span>
+<span>4m ago</span>
+<span>2.1s</span>
+</div>
+</div>
+</div>
+<!-- Group 2: alphaform-workspace -->
+<div class="space-y-1">
+<div class="flex items-center justify-between px-space-xs py-1 text-on-surface-variant hover:text-primary cursor-pointer">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[14px] text-outline">arrow_drop_down</span>
+<span class="font-headline-sm text-headline-sm text-on-surface">alphaform-workspace</span>
+</div>
+<span class="font-mono-badge text-mono-badge text-outline">2 tabs</span>
+</div>
+<!-- Tab 3: Busy test runner -->
+<div class="group flex flex-col gap-1 p-2 rounded bg-surface-container-low hover:bg-surface-container cursor-pointer transition-colors">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2 min-w-0">
+<span class="w-2 h-2 rounded-full bg-amber-400"></span>
+<span class="font-mono-code text-mono-code text-on-surface truncate">backend: test</span>
+</div>
+<span class="font-mono-badge text-mono-badge px-1 py-0.2 rounded bg-surface-container-high text-amber-300">
+                TESTING
+              </span>
+</div>
+<p class="font-body-compact text-body-compact text-on-surface-variant truncate">pytest running 42/58</p>
+<div class="flex items-center justify-between pt-0.5 font-mono-badge text-mono-badge text-outline">
+<span>CPU: 38.2%</span>
+<span>18s elapsed</span>
+</div>
+</div>
+<!-- Tab 4: Terraform Idle -->
+<div class="group flex flex-col gap-1 p-2 rounded bg-surface-container-low hover:bg-surface-container cursor-pointer transition-colors">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2 min-w-0">
+<span class="w-1.5 h-1.5 rounded-full bg-outline"></span>
+<span class="font-mono-code text-mono-code text-on-surface truncate">cloud-iac: terraform</span>
+</div>
+<span class="font-mono-badge text-mono-badge px-1 py-0.2 rounded bg-surface-container-highest text-outline">
+                READY
+              </span>
+</div>
+<div class="flex items-center justify-between pt-0.5 font-mono-badge text-mono-badge text-outline">
+<span>plan synced</span>
+<span>eu-central-1</span>
+</div>
+</div>
+</div>
+<!-- Group 3: Habuild (Collapsed) -->
+<div class="space-y-1">
+<div class="flex items-center justify-between px-space-xs py-1 text-outline hover:text-on-surface-variant cursor-pointer">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[14px] text-outline">arrow_right</span>
+<span class="font-headline-sm text-headline-sm text-outline">Habuild</span>
+</div>
+<span class="font-mono-badge text-mono-badge text-outline">0 open</span>
+</div>
+</div>
+</div>
+<!-- Rail Bottom Utilities -->
+<div class="p-space-xs bg-surface-container-low flex flex-col gap-1">
+<button class="w-full flex items-center justify-between px-space-sm py-1.5 rounded bg-surface-container hover:bg-surface-container-high text-on-surface font-body-compact text-body-compact transition-colors">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px] text-outline">keyboard_command_key</span>
+<span>Quick Switcher</span>
+</div>
+<kbd class="font-mono-badge text-mono-badge px-1 rounded bg-surface-container-lowest text-outline">⌃Tab</kbd>
+</button>
+<button class="w-full flex items-center justify-center gap-1 py-1 rounded text-error hover:bg-error-container/20 font-micro-label text-micro-label uppercase tracking-wider transition-colors">
+<span class="material-symbols-outlined text-[14px]">close_small</span>
+<span>Kill All in Workspace</span>
+</button>
+</div>
+</aside>
+<!-- CENTER PANE: Active Workspace Terminal Emulator -->
+<main class="flex-1 flex flex-col min-w-0 bg-surface-container-lowest overflow-hidden">
+<!-- Nested Terminal Tab Strip -->
+<div class="h-10 bg-surface-container-low px-space-xs flex items-center justify-between shrink-0 select-none">
+<!-- Tabs for active group -->
+<div class="flex items-center gap-1 overflow-x-auto min-w-0">
+<!-- Active Tab -->
+<div class="flex items-center gap-2 px-3 py-1.5 rounded bg-surface-container-lowest text-primary font-mono-code text-mono-code font-medium shadow-sm cursor-pointer shrink-0">
+<span class="w-2 h-2 rounded-full bg-tertiary-fixed"></span>
+<span class="flex items-center gap-1">
+<span class="text-tertiary-fixed-dim">&gt;_</span>
+<span>vault: next-dev</span>
+</span>
+<button class="text-outline hover:text-primary rounded-full p-0.5 ml-1 transition-colors">
+<span class="material-symbols-outlined text-[14px]">close</span>
+</button>
+</div>
+<!-- Inactive Tab 2 -->
+<div class="flex items-center gap-2 px-3 py-1.5 rounded hover:bg-surface-container text-on-surface-variant font-mono-code text-mono-code cursor-pointer shrink-0 transition-colors">
+<span class="w-1.5 h-1.5 rounded-full bg-outline"></span>
+<span class="flex items-center gap-1">
+<span class="text-outline">&gt;_</span>
+<span>md-notes</span>
+</span>
+<button class="text-outline hover:text-primary rounded-full p-0.5 ml-1 transition-colors">
+<span class="material-symbols-outlined text-[14px]">close</span>
+</button>
+</div>
+<!-- Inactive Tab 3 -->
+<div class="flex items-center gap-2 px-3 py-1.5 rounded hover:bg-surface-container text-on-surface-variant font-mono-code text-mono-code cursor-pointer shrink-0 transition-colors">
+<span class="w-1.5 h-1.5 rounded-full bg-outline"></span>
+<span class="flex items-center gap-1">
+<span class="text-outline">&gt;_</span>
+<span>api: worker</span>
+</span>
+<button class="text-outline hover:text-primary rounded-full p-0.5 ml-1 transition-colors">
+<span class="material-symbols-outlined text-[14px]">close</span>
+</button>
+</div>
+<!-- New Tab (+) Action -->
+<button class="flex items-center justify-center w-7 h-7 rounded hover:bg-surface-container text-outline hover:text-primary transition-colors" title="New Tab in Side Projects [⌘T]">
+<span class="material-symbols-outlined text-[18px]">add</span>
+</button>
+</div>
+<!-- Right Terminal Utilities -->
+<div class="flex items-center gap-2 shrink-0">
+<div class="hidden 2xl:flex items-center gap-1.5 px-2 py-0.5 rounded bg-surface-container font-mono-badge text-mono-badge text-outline">
+<span class="material-symbols-outlined text-[13px] text-tertiary-fixed">folder</span>
+<span class="text-on-surface-variant truncate max-w-xs">~/Workspace/Side Projects/vault.devrealm.in</span>
+</div>
+<span class="font-mono-badge text-mono-badge px-2 py-0.5 rounded bg-surface-container text-tertiary-fixed flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary-fixed animate-pulse"></span>
+            :3000 bound
+          </span>
+<span class="font-mono-badge text-mono-badge px-2 py-0.5 rounded bg-surface-container-high text-on-surface-variant font-semibold">
+            zsh
+          </span>
+<button class="p-1 rounded text-outline hover:text-primary hover:bg-surface-container transition-colors" title="Clear Scrollback (⌘K)">
+<span class="material-symbols-outlined text-[16px]">backspace</span>
+</button>
+<button class="p-1 rounded text-outline hover:text-primary hover:bg-surface-container transition-colors" title="Maximize terminal">
+<span class="material-symbols-outlined text-[16px]">fullscreen</span>
+</button>
+</div>
+</div>
+<!-- Real Shell Output Screen -->
+<div class="flex-1 p-4 font-mono-code text-mono-code overflow-y-auto space-y-2 select-text leading-relaxed bg-surface-container-lowest">
+<!-- History header -->
+<div class="text-outline flex items-center gap-2 pb-2">
+<span>Last login: Fri Oct 24 16:32:01 on ttys004</span>
+<span class="text-outline-variant">•</span>
+<span class="text-tertiary-fixed-dim">DevRealm Agent v2.4 initialized</span>
+</div>
+<!-- Shell Command Executed -->
+<div class="flex items-start gap-2">
+<span class="text-tertiary-fixed-dim font-semibold select-none">$</span>
+<span class="text-primary font-medium">cd ~/Workspace/Side\ Projects/vault.devrealm.in &amp;&amp; pnpm dev</span>
+</div>
+<!-- Tooling Hook Log -->
+<div class="text-on-surface-variant flex items-center gap-2">
+<span class="text-tertiary-fixed-dim select-none">[devrealm-bridge]</span>
+<span>Hooked local Ollama context bridge (port 11434) • PID: 49201</span>
+</div>
+<!-- Next.js Output Block -->
+<div class="p-3 my-2 rounded bg-surface-container-low shadow-sm space-y-1">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2 text-primary font-bold">
+<span class="text-primary">▲</span>
+<span>Next.js 16.3.3 (turbo)</span>
+</div>
+<span class="font-mono-badge text-mono-badge px-1.5 py-0.5 rounded bg-surface-container text-tertiary-fixed font-semibold">
+              READY
+            </span>
+</div>
+<div class="text-on-surface-variant pt-1 space-y-0.5">
+<div class="flex items-center gap-2">
+<span class="w-24 text-outline select-none">- Local:</span>
+<a class="text-tertiary-fixed-dim underline decoration-tertiary-fixed/50 hover:text-primary transition-colors" href="http://localhost:3000" target="_blank">
+                http://localhost:3000
+              </a>
+<span class="font-mono-badge text-mono-badge px-1 rounded bg-surface-container-high text-on-surface">Live Preview</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-24 text-outline select-none">- Network:</span>
+<span class="text-on-surface">http://192.168.1.14:3000</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-24 text-outline select-none">- Environments:</span>
+<span class="text-on-surface">.env.local, .env.development</span>
+</div>
+</div>
+</div>
+<!-- Build Metrics & Request Log -->
+<div class="space-y-1 pt-1">
+<div class="flex items-center gap-2 text-tertiary-fixed">
+<span class="material-symbols-outlined text-[16px]">check_circle</span>
+<span>Compiled / (app) in 1,180ms (1420 modules)</span>
+</div>
+<div class="text-on-surface-variant flex items-center gap-4">
+<span class="text-tertiary-fixed-dim font-bold">GET</span>
+<span class="text-primary">/api/agent/context</span>
+<span class="text-tertiary-fixed font-semibold">200</span>
+<span class="text-outline">in 42ms</span>
+</div>
+<div class="text-on-surface-variant flex items-center gap-4">
+<span class="text-tertiary-fixed-dim font-bold">GET</span>
+<span class="text-primary">/dashboard</span>
+<span class="text-tertiary-fixed font-semibold">200</span>
+<span class="text-outline">in 118ms</span>
+</div>
+<div class="text-on-surface-variant flex items-center gap-2 py-1">
+<span class="text-primary font-bold">[Claude Code]</span>
+<span class="text-on-surface">Sync hook verified: CLAUDE.md loaded (1,842 tokens)</span>
+</div>
+</div>
+<!-- Interactive Shell Prompt Line -->
+<div class="pt-4 space-y-1">
+<div class="flex items-center gap-2 text-outline font-mono-badge text-mono-badge">
+<span class="text-primary font-semibold">vault.devrealm.in</span>
+<span>on</span>
+<span class="text-amber-400 flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[13px]">alt_route</span> main [!]
+            </span>
+<span>via</span>
+<span class="text-tertiary-fixed-dim">⬢ v20.12.2</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-tertiary-fixed font-bold select-none">❯</span>
+<div class="flex items-center gap-1 flex-1">
+<input autofocus="" class="bg-transparent border-none outline-none font-mono-code text-mono-code text-primary w-full placeholder:text-outline/60" id="terminal-input" placeholder="Type a command or natural language instruction..." type="text"/>
+<span class="w-2.5 h-4 bg-primary inline-block animate-pulse shrink-0"></span>
+</div>
+</div>
+</div>
+</div>
+<!-- Terminal Bottom Action Strip & Fast Shortcuts -->
+<div class="h-9 px-space-md bg-surface-container-low flex items-center justify-between shrink-0">
+<!-- Quick keyboard shortcuts -->
+<div class="flex items-center gap-space-md font-mono-badge text-mono-badge text-outline">
+<span class="flex items-center gap-1 hover:text-on-surface cursor-pointer">
+<kbd class="px-1 py-0.2 rounded bg-surface-container text-on-surface">⌘K</kbd> Clear
+          </span>
+<span class="flex items-center gap-1 hover:text-on-surface cursor-pointer">
+<kbd class="px-1 py-0.2 rounded bg-surface-container text-on-surface">⇧Enter</kbd> Split Tab
+          </span>
+<span class="flex items-center gap-1 hover:text-on-surface cursor-pointer">
+<kbd class="px-1 py-0.2 rounded bg-surface-container text-on-surface">⌥↑</kbd> Prev Tab
+          </span>
+<span class="flex items-center gap-1 hover:text-on-surface cursor-pointer">
+<kbd class="px-1 py-0.2 rounded bg-surface-container text-on-surface">⌥↓</kbd> Next Tab
+          </span>
+<span class="flex items-center gap-1 hover:text-on-surface cursor-pointer">
+<kbd class="px-1 py-0.2 rounded bg-surface-container text-error">⌘C</kbd> Interrupt
+          </span>
+</div>
+<!-- Clickable server URL button -->
+<div class="flex items-center gap-2">
+<a class="flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-container-high hover:bg-surface-bright text-primary font-mono-code text-mono-code font-medium transition-colors shadow-sm" href="http://localhost:3000" target="_blank">
+<span class="w-2 h-2 rounded-full bg-tertiary-fixed"></span>
+<span>http://localhost:3000</span>
+<span class="material-symbols-outlined text-[13px] text-tertiary-fixed-dim">open_in_new</span>
+</a>
+</div>
+</div>
+</main>
+<!-- RIGHT DRAWER: REPOS LAUNCHER (Collapsible) -->
+<aside class="w-72 bg-surface-container-lowest flex flex-col shrink-0 overflow-hidden transition-all duration-200" id="repo-drawer">
+<!-- Drawer Header & Filter -->
+<div class="p-space-xs bg-surface-container-low space-y-2">
+<div class="flex items-center justify-between px-space-xs">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[15px] text-outline">account_tree</span>
+<span class="font-micro-label text-micro-label uppercase tracking-widest text-on-surface-variant">Repos Launcher</span>
+</div>
+<span class="font-mono-badge text-mono-badge px-1.5 py-0.2 rounded bg-surface-container text-outline">44 TOTAL</span>
+</div>
+<!-- Search Bar Inside Drawer -->
+<div class="flex items-center gap-1.5 px-2 py-1 rounded bg-surface-container-lowest focus-within:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-[15px] text-outline">search</span>
+<input class="w-full bg-transparent border-none outline-none font-body-compact text-body-compact text-on-surface placeholder:text-outline" placeholder="Filter 44 repos..." type="text"/>
+<kbd class="font-mono-badge text-mono-badge px-1 rounded bg-surface-container text-outline">/</kbd>
+</div>
+<!-- Filter Chips -->
+<div class="flex items-center gap-1 pt-0.5">
+<button class="px-2 py-0.5 rounded bg-surface-container-high text-primary font-mono-badge text-mono-badge font-semibold">
+            All
+          </button>
+<button class="px-2 py-0.5 rounded bg-surface-container text-on-surface-variant hover:text-primary font-mono-badge text-mono-badge flex items-center gap-1 transition-colors">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary-fixed"></span>
+<span>Open (4)</span>
+</button>
+<button class="px-2 py-0.5 rounded bg-surface-container text-on-surface-variant hover:text-primary font-mono-badge text-mono-badge transition-colors">
+            Recent
+          </button>
+</div>
+</div>
+<!-- Discovered Repos Tree -->
+<div class="flex-1 overflow-y-auto p-space-xs space-y-3">
+<!-- Workspace 1: Side Projects -->
+<div class="space-y-1">
+<div class="flex items-center justify-between px-space-xs py-1 text-on-surface-variant">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[14px] text-outline">folder_open</span>
+<span class="font-headline-sm text-headline-sm text-primary font-semibold">Side Projects</span>
+</div>
+<span class="font-mono-badge text-mono-badge text-outline">3 repos</span>
+</div>
+<!-- Repo 1: Active Shell Attached -->
+<div class="p-2 rounded bg-surface-container-low flex flex-col gap-1.5 shadow-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2 min-w-0">
+<span class="material-symbols-outlined text-[16px] text-tertiary-fixed">terminal</span>
+<span class="font-mono-code text-mono-code text-primary font-semibold truncate">vault.devrealm.in</span>
+</div>
+<span class="font-mono-badge text-mono-badge px-1 py-0.2 rounded bg-surface-container text-tertiary-fixed">
+                1 open
+              </span>
+</div>
+<div class="flex items-center justify-between">
+<span class="font-mono-badge text-mono-badge text-outline">git: main</span>
+<button class="px-2 py-0.5 rounded bg-surface-container hover:bg-surface-bright text-primary font-mono-badge text-mono-badge flex items-center gap-1 transition-colors">
+<span class="material-symbols-outlined text-[12px]">add</span>
+<span>Shell</span>
+</button>
+</div>
+</div>
+<!-- Repo 2 -->
+<div class="p-2 rounded bg-surface-container-lowest hover:bg-surface-container-low flex items-center justify-between transition-colors group cursor-pointer">
+<div class="flex items-center gap-2 min-w-0">
+<span class="material-symbols-outlined text-[16px] text-outline group-hover:text-primary">folder</span>
+<span class="font-mono-code text-mono-code text-on-surface truncate">md-notes</span>
+</div>
+<span class="font-mono-badge text-mono-badge px-1 py-0.2 rounded bg-surface-container text-outline">
+              1 open
+            </span>
+</div>
+<!-- Repo 3: Idle launchable -->
+<div class="p-2 rounded bg-surface-container-lowest hover:bg-surface-container-low flex items-center justify-between transition-colors group cursor-pointer">
+<div class="flex items-center gap-2 min-w-0">
+<span class="material-symbols-outlined text-[16px] text-outline group-hover:text-primary">folder</span>
+<span class="font-mono-code text-mono-code text-on-surface-variant truncate group-hover:text-on-surface">portfolio</span>
+</div>
+<button class="opacity-0 group-hover:opacity-100 px-1.5 py-0.5 rounded bg-surface-container text-primary font-mono-badge text-mono-badge transition-opacity">
+              + Launch
+            </button>
+</div>
+</div>
+<!-- Workspace 2: alphaform-workspace -->
+<div class="space-y-1">
+<div class="flex items-center justify-between px-space-xs py-1 text-on-surface-variant">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[14px] text-outline">folder_open</span>
+<span class="font-headline-sm text-headline-sm text-on-surface font-semibold">alphaform-workspace</span>
+</div>
+<span class="font-mono-badge text-mono-badge text-outline">4 targets</span>
+</div>
+<!-- Sub repo: backend -->
+<div class="p-2 rounded bg-surface-container-lowest hover:bg-surface-container-low flex items-center justify-between transition-colors group cursor-pointer">
+<div class="flex items-center gap-2 min-w-0">
+<span class="material-symbols-outlined text-[16px] text-amber-400">terminal</span>
+<span class="font-mono-code text-mono-code text-on-surface truncate">backend</span>
+</div>
+<span class="font-mono-badge text-mono-badge px-1 py-0.2 rounded bg-surface-container text-amber-300">
+              1 open
+            </span>
+</div>
+<!-- Sub repo: cloud-iac -->
+<div class="p-2 rounded bg-surface-container-lowest hover:bg-surface-container-low flex items-center justify-between transition-colors group cursor-pointer">
+<div class="flex items-center gap-2 min-w-0">
+<span class="material-symbols-outlined text-[16px] text-outline">terminal</span>
+<span class="font-mono-code text-mono-code text-on-surface truncate">cloud-iac</span>
+</div>
+<span class="font-mono-badge text-mono-badge px-1 py-0.2 rounded bg-surface-container text-outline">
+              1 open
+            </span>
+</div>
+<!-- Sub folder: specs -->
+<div class="p-2 rounded bg-surface-container-lowest hover:bg-surface-container-low flex items-center justify-between transition-colors group cursor-pointer">
+<div class="flex items-center gap-2 min-w-0">
+<span class="material-symbols-outlined text-[16px] text-outline">folder_zip</span>
+<span class="font-mono-code text-mono-code text-on-surface-variant truncate group-hover:text-on-surface">specs</span>
+</div>
+<button class="opacity-0 group-hover:opacity-100 px-1.5 py-0.5 rounded bg-surface-container text-primary font-mono-badge text-mono-badge transition-opacity">
+              Open here
+            </button>
+</div>
+</div>
+<!-- Workspace 3: Notes & Specs -->
+<div class="space-y-1">
+<div class="flex items-center justify-between px-space-xs py-1 text-outline">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[14px] text-outline">folder</span>
+<span class="font-headline-sm text-headline-sm text-outline">Notes &amp; Specs</span>
+</div>
+<span class="font-mono-badge text-mono-badge text-outline">2 repos</span>
+</div>
+<div class="p-2 rounded bg-surface-container-lowest hover:bg-surface-container-low flex items-center justify-between transition-colors group cursor-pointer">
+<div class="flex items-center gap-2 min-w-0">
+<span class="material-symbols-outlined text-[16px] text-outline">data_object</span>
+<span class="font-mono-code text-mono-code text-on-surface-variant truncate">admin-panel-fe</span>
+</div>
+<button class="opacity-0 group-hover:opacity-100 px-1.5 py-0.5 rounded bg-surface-container text-primary font-mono-badge text-mono-badge transition-opacity">
+              + Launch
+            </button>
+</div>
+<div class="p-2 rounded bg-surface-container-lowest hover:bg-surface-container-low flex items-center justify-between transition-colors group cursor-pointer">
+<div class="flex items-center gap-2 min-w-0">
+<span class="material-symbols-outlined text-[16px] text-outline">description</span>
+<span class="font-mono-code text-mono-code text-on-surface-variant truncate">RFCs</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Drawer Footer Keyboard Tip -->
+<div class="p-space-xs bg-surface-container-low">
+<div class="p-2 rounded bg-surface-container-lowest flex items-start gap-2">
+<span class="material-symbols-outlined text-[16px] text-tertiary-fixed-dim shrink-0 mt-0.5">tips_and_updates</span>
+<p class="font-body-compact text-body-compact text-outline leading-tight">
+            Press <kbd class="font-mono-badge text-mono-badge px-1 rounded bg-surface-container text-on-surface">⇧Enter</kbd> on any <kbd class="font-mono-badge text-mono-badge px-1 rounded bg-surface-container text-on-surface">⌘K</kbd> repo result to open a terminal instantly with zero path typing.
+          </p>
+</div>
+</div>
+</aside>
+</div>
+</div>
+<script>
+  // Panel toggle micro-interactions
+  const sessionsRail = document.getElementById('sessions-rail');
+  const repoDrawer = document.getElementById('repo-drawer');
+  const toggleSessionsBtn = document.getElementById('toggle-sessions');
+  const toggleDrawerBtn = document.getElementById('toggle-drawer');
+  const terminalInput = document.getElementById('terminal-input');
+
+  if (toggleSessionsBtn && sessionsRail) {
+    toggleSessionsBtn.addEventListener('click', () => {
+      sessionsRail.classList.toggle('hidden');
+      toggleSessionsBtn.classList.toggle('opacity-60');
+    });
+  }
+
+  if (toggleDrawerBtn && repoDrawer) {
+    toggleDrawerBtn.addEventListener('click', () => {
+      repoDrawer.classList.toggle('hidden');
+      toggleDrawerBtn.classList.toggle('opacity-60');
+    });
+  }
+
+  // Keyboard shortcut binding
+  window.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === '1') {
+      e.preventDefault();
+      sessionsRail.classList.toggle('hidden');
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') {
+      e.preventDefault();
+      repoDrawer.classList.toggle('hidden');
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 't') {
+      e.preventDefault();
+      if (terminalInput) {
+        terminalInput.focus();
+        terminalInput.placeholder = 'New shell spawned. Type command...';
+      }
+    }
+  });
+</script></main><footer class="w-full bg-surface-container-lowest border-t border-outline-variant/30 py-space-sm px-margin flex items-center justify-between text-outline"><div class="flex items-center gap-space-md font-mono-badge text-mono-badge"><span>DevRealm Workstation</span><span class="inline-block w-1 h-1 rounded-full bg-outline-variant"></span><span class="text-tertiary-fixed-dim">Cluster: Local-Ollama:11434</span></div><div class="flex items-center gap-space-md font-mono-badge text-mono-badge"><span>UTF-8</span><span>Node v20.12.2</span><span>Electron 30.0.1</span></div></footer></body></html>
