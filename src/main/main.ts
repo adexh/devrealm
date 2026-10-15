@@ -63,7 +63,7 @@ export async function setupAutoUpdater(win: BrowserWindow): Promise<void> {
   // updates" action surfaces those via its own return value.
   const result = await checkForUpdate()
   if (result.status === 'available') {
-    win.webContents.send('updater:update-available', { latestVersion: result.latestVersion })
+    win.webContents.send('updater:update-available', { currentVersion: result.currentVersion, latestVersion: result.latestVersion })
   }
 }
 

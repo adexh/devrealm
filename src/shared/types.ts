@@ -236,9 +236,9 @@ export type ImportedClaudeSettings = {
 // updates are detected by comparing the running version against the latest
 // GitHub release tag.
 export type UpdateCheckResult =
-  | { status: "up-to-date" }
+  | { status: "up-to-date"; currentVersion: string }
   | { status: "available"; currentVersion: string; latestVersion: string }
-  | { status: "error"; message: string }
+  | { status: "error"; currentVersion: string; message: string }
 
 export type WorkspaceExportRepository = {
   name: string

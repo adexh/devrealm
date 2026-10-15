@@ -89,11 +89,11 @@ function MainApp() {
   useEffect(() => {
     // Startup auto-check: the main process only pushes when an update exists.
     // A dismissed commit stays hidden until the remote moves on again.
-    const offAvailable = window.electronAPI.updater.onUpdateAvailable(({ latestVersion }) => {
+    const offAvailable = window.electronAPI.updater.onUpdateAvailable(({ currentVersion, latestVersion }) => {
       isManualCheckRef.current = false
       const dismissed = localStorage.getItem('dismissed_update_version')
       if (dismissed === latestVersion) return
-      setUpdateState({ stage: 'available', latestVersion })
+      setUpdateState({ status: 'available', currentVersion, latestVersion })
     })
     return () => { offAvailable() }
   }, [])
@@ -120,16 +120,8 @@ function MainApp() {
               onEditorSettings={() => setEditorSettingsOpen(true)}
               onCheckForUpdates={() => {
                 isManualCheckRef.current = true
-                setUpdateState({ stage: 'checking' })
-                void window.electronAPI.updater.checkForUpdates().then((result) => {
-                  if (result.status === 'available') {
-                    setUpdateState({ stage: 'available', latestVersion: result.latestVersion })
-                  } else if (result.status === 'up-to-date') {
-                    setUpdateState({ stage: 'up-to-date' })
-                  } else {
-                    setUpdateState({ stage: 'error', message: result.message })
-                  }
-                })
+                setUpdateState({ status: 'checking' })
+                void window.electronAPI.updater.checkForUpdates().then(setUpdateState)
               }}
             />
             <ThemeToggle dark={dark} onToggle={() => setDark(!dark)} />
@@ -191,8 +183,15 @@ function MainApp() {
         {updateState && (
           <UpdateNotificationModal
             state={updateState}
+            onInstall={(currentVersion, latestVersion) => {
+              setUpdateState({ status: 'installing', currentVersion, latestVersion })
+              // Only settles when the update did not take; on success this app is replaced first.
+              void window.electronAPI.updater.install().then(({ message }) => {
+                setUpdateState({ status: 'error', currentVersion, message })
+              })
+            }}
             onClose={() => {
-              if (!isManualCheckRef.current && updateState.stage === 'available') {
+              if (!isManualCheckRef.current && updateState.status === 'available') {
                 localStorage.setItem('dismissed_update_version', updateState.latestVersion)
               }
               setUpdateState(null)

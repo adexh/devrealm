@@ -21,7 +21,7 @@ import {
 import { openInCodeEditor } from "./editorLauncher";
 import { listMcpServers } from "./mcpServers";
 import { isUserConfigPath, isUserHome } from "./templates/scaffold";
-import { checkForUpdate } from "./updater";
+import { appVersion, checkForUpdate, installUpdate } from "./updater";
 import {
   createWorkspaceExportPayload,
   getRepoCloneUrl,
@@ -1634,9 +1634,11 @@ export function registerIpcHandlers() {
   ipcMain.handle("auth:get-sign-in-url", () => signInUrl())
 
   ipcMain.handle("updater:check-for-updates", (): Promise<UpdateCheckResult> => {
-    if (!app.isPackaged) return Promise.resolve({ status: "up-to-date" });
+    if (!app.isPackaged) return Promise.resolve({ status: "up-to-date", currentVersion: appVersion() });
     return checkForUpdate();
   });
+
+  ipcMain.handle("updater:install", () => installUpdate());
 
   ipcMain.handle("updater:open-release-page", () => {
     shell.openExternal(LATEST_RELEASE_URL)

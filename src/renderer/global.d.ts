@@ -121,7 +121,9 @@ interface ElectronAPI {
   updater: {
     checkForUpdates: () => Promise<UpdateCheckResult>
     openReleasePage: () => Promise<void>
-    onUpdateAvailable: (cb: (info: { latestVersion: string }) => void) => () => void
+    /** Settles only when the installer exits without replacing this app, i.e. the update did not take. */
+    install: () => Promise<{ message: string }>
+    onUpdateAvailable: (cb: (info: { currentVersion: string; latestVersion: string }) => void) => () => void
   }
   templates: {
     list: () => Promise<TemplateSummary[]>
