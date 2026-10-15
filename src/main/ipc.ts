@@ -18,7 +18,7 @@ import {
   marketplaceManifestUrl,
 } from "./constants";
 import { openInCodeEditor } from "./editorLauncher";
-import { checkForUpdate, installUpdate } from "./updater";
+import { appVersion, checkForUpdate, installUpdate } from "./updater";
 import {
   createWorkspaceExportPayload,
   getRepoCloneUrl,
@@ -1604,7 +1604,7 @@ export function registerIpcHandlers() {
   ipcMain.handle("auth:get-sign-in-url", () => signInUrl())
 
   ipcMain.handle("updater:check-for-updates", (): Promise<UpdateCheckResult> => {
-    if (!app.isPackaged) return Promise.resolve({ status: "up-to-date", currentVersion: app.getVersion() });
+    if (!app.isPackaged) return Promise.resolve({ status: "up-to-date", currentVersion: appVersion() });
     return checkForUpdate();
   });
 

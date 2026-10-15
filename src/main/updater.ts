@@ -26,11 +26,18 @@ function isNewer(a: number[], b: number[]): boolean {
   return false;
 }
 
+// Started as `electron dist/main/main.js`, Electron finds no package.json and
+// app.getVersion() reports Electron's own version instead of DevRealm's.
+export function appVersion(): string {
+  if (app.isPackaged) return app.getVersion();
+  return JSON.parse(fs.readFileSync(path.join(__dirname, "..", "..", "package.json"), "utf8")).version;
+}
+
 // Compares the running app version against the latest GitHub release tag.
 // electron-updater is not usable here because install.sh builds the app
 // unpacked (no app-update.yml) and unsigned; the installer is re-run to update.
 export async function checkForUpdate(): Promise<UpdateCheckResult> {
-  const currentVersion = app.getVersion();
+  const currentVersion = appVersion();
   let release: GithubRelease;
   try {
     const res = await fetch(LATEST_RELEASE_API_URL, {
