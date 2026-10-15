@@ -23,11 +23,18 @@ npm run lint:renderer  # tsc -p tsconfig.renderer.json --noEmit
 npm run lint:daemon  # tsc -p tsconfig.daemon.json --noEmit
 
 # Smoke tests (no unit test suite)
-npm run smoke          # all three of the below
+npm run smoke          # all of the below
+npm run smoke:panes    # the terminal pane split tree and tab order, plain Node
+npm run integration:panes  # the real app driven over CDP: drags, sashes, typing, workspaces (add -- --dev for StrictMode)
 npm run smoke:daemon   # drives the real PTY daemon over its socket
 npm run smoke:main     # drives the main-process DaemonClient under Electron
 npm run smoke:renderer # drives a real BrowserWindow with the real preload
+npm run smoke:ides     # IDE window listing and process classification, plus a live VS Code snapshot
 ```
+
+From a VS Code terminal or a Claude Code session, run the smoke suites with
+`env -u ELECTRON_RUN_AS_NODE` in front; that variable is inherited there and
+turns the Electron binary into plain Node.
 
 Tests live in `tests/`, suites in `tests/smoke/` and shared code in
 `tests/helpers/`. `scripts/` is build tooling only. See `tests/README.md`.
@@ -50,14 +57,17 @@ This is an **Electron desktop app** for managing developer workspaces, git repos
 **Renderer process** (`src/renderer/`):
 - React 19, bundled by Vite with Tailwind CSS 4.
 - All communication to the main process goes through `window.electronAPI` (never `require` or Node APIs directly).
-- `App.tsx` — Root component; drives the two-tab layout (Dashboard / AI Configs), global fuzzy search (Fuse.js), and workspace/repo state.
-- `features/` — Domain modules: `dashboard`, `workspace`, `ai-config`, `markdown-editor`, `marketplace`.
+- `App.tsx` — Root component; drives the tab layout (Dashboard / AI / Terminals / IDEs, plus editor tabs), global fuzzy search (Fuse.js), and workspace/repo state.
+- `features/` — Domain modules: `dashboard`, `workspace`, `ai-config`, `markdown-editor`, `marketplace`, `terminals`, `ides`.
+- `utils/` — Pure helpers more than one feature needs (`format.ts` for sizes and relative times, `paths.ts` for repo path resolution). A helper used by two features lives here, never exported from one feature for another to import.
 - `components/ui.tsx` — Shared primitives (Tabs, Modal, Box, icons).
 - `theme.ts` — Tailwind CSS custom properties.
 
 **PTY daemon** (`src/daemon/`): a detached, long-lived process owning every terminal PTY, so shells survive quitting or updating the app. Runs under `process.execPath` with `ELECTRON_RUN_AS_NODE=1`, which keeps node-pty's native ABI matched and ships no second runtime. Speaks a length-prefixed binary protocol over a Unix socket (named pipe on Windows) whose file mode `0600` is the whole auth boundary. **Read `docs/terminals.md` before working on this feature**; it covers the protocol, flow control, and the traps that have already caught someone.
 
-**Shared** (`src/shared/`): types shared across processes — `types.ts` (`Workspace`, `Repo`, `ClaudeSettingsFile`, ...), `terminal.ts` (session and control-plane shapes), `terminalConstants.ts` (protocol values, Buffer-free so the renderer can import it).
+**IDE manager** (`src/main/ides/`): lists the running VS Code's windows, maps each to a DevRealm repo by folder name, and totals its processes' CPU and memory from `ps`. Windows come from macOS Accessibility (`osascript`) when granted and from `code --status` otherwise; focus goes through `code <folder>`, close and quit through AppleScript. Everything is request/response over `ides:*` IPC and the renderer polls. **Read `docs/ides-implementation.md` before working on this feature**; `docs/ides-product.md` says what it is for.
+
+**Shared** (`src/shared/`): types shared across processes — `types.ts` (`Workspace`, `Repo`, `ClaudeSettingsFile`, ...), `terminal.ts` (session and control-plane shapes), `terminalConstants.ts` (protocol values, Buffer-free so the renderer can import it), `ide.ts` (IDE window and process snapshot shapes).
 
 **Node-only shared** (`src/shared/node/`): code the main process and the daemon both need but the renderer must never load, currently `terminalProtocol.ts` (frame encode/decode, uses `Buffer`). The whole directory is excluded from the renderer's tsconfig. Put anything touching Node builtins here, not in `src/shared/`.
 

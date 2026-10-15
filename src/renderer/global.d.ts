@@ -26,6 +26,7 @@ import type {
   TerminalOpenRequest,
   TerminalSessionInfo,
 } from '../shared/terminal'
+import type { IdeId, IdeSnapshot, IdeSnapshotOptions, IdeWindowRef } from '../shared/ide'
 
 interface ElectronAPI {
   platform: string
@@ -94,6 +95,14 @@ interface ElectronAPI {
     clear: (id: string) => Promise<void>
     onEvent: (cb: (event: ControlEvent) => void) => () => void
   }
+  ides: {
+    snapshot: (options?: IdeSnapshotOptions) => Promise<IdeSnapshot>
+    focusWindow: (ref: IdeWindowRef) => Promise<void>
+    closeWindow: (ref: IdeWindowRef) => Promise<void>
+    quit: (ide: IdeId) => Promise<void>
+    requestAccessibility: () => Promise<boolean>
+    openAccessibilitySettings: () => Promise<void>
+  }
   markdown: {
     readFile: (data: MarkdownFileIdentity) => Promise<MarkdownFileContent>
     writeFile: (data: MarkdownFileWriteRequest) => Promise<MarkdownFileMetadata>
@@ -110,7 +119,9 @@ interface ElectronAPI {
   updater: {
     checkForUpdates: () => Promise<UpdateCheckResult>
     openReleasePage: () => Promise<void>
-    onUpdateAvailable: (cb: (info: { latestVersion: string }) => void) => () => void
+    /** Settles only when the installer exits without replacing this app, i.e. the update did not take. */
+    install: () => Promise<{ message: string }>
+    onUpdateAvailable: (cb: (info: { currentVersion: string; latestVersion: string }) => void) => () => void
   }
   claude: {
     pluginsAndSkills: (workspacePath?: string) => Promise<{ id: string; name: string; version: string; description: string; enabled: boolean; skills: { name: string; description: string }[] }[]>

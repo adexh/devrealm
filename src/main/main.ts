@@ -2,6 +2,7 @@ import { app, BrowserWindow, Menu } from 'electron'
 import path from 'path'
 import { registerIpcHandlers } from './ipc'
 import { registerTerminalIpcHandlers } from './terminals/ipc'
+import { registerIdeIpcHandlers } from './ides/ipc'
 import { readConfig, saveAuthToken, saveAuthUser } from './store'
 import { fetchAuthUser } from './auth'
 import { syncAllWorkspaceGithub } from './workspaceGithub'
@@ -61,7 +62,7 @@ export async function setupAutoUpdater(win: BrowserWindow): Promise<void> {
   // updates" action surfaces those via its own return value.
   const result = await checkForUpdate()
   if (result.status === 'available') {
-    win.webContents.send('updater:update-available', { latestVersion: result.latestVersion })
+    win.webContents.send('updater:update-available', { currentVersion: result.currentVersion, latestVersion: result.latestVersion })
   }
 }
 
@@ -140,6 +141,7 @@ app.whenReady().then(() => {
   app.setAsDefaultProtocolClient(DEEP_LINK_PROTOCOL)
   registerIpcHandlers()
   registerTerminalIpcHandlers(() => mainWindow?.webContents ?? null)
+  registerIdeIpcHandlers()
   const win = createWindow()
   void setupAutoUpdater(win)
   startWorkspaceGithubPolling()

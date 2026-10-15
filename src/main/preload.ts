@@ -73,6 +73,14 @@ const api = {
       return () => ipcRenderer.removeListener('terminals:event', handler)
     },
   },
+  ides: {
+    snapshot: (options?: unknown) => ipcRenderer.invoke('ides:snapshot', options),
+    focusWindow: (ref: unknown) => ipcRenderer.invoke('ides:focus-window', ref),
+    closeWindow: (ref: unknown) => ipcRenderer.invoke('ides:close-window', ref),
+    quit: (ide: string) => ipcRenderer.invoke('ides:quit', ide),
+    requestAccessibility: () => ipcRenderer.invoke('ides:request-accessibility'),
+    openAccessibilitySettings: () => ipcRenderer.invoke('ides:open-accessibility-settings'),
+  },
   markdown: {
     readFile: (data: { absolutePath: string } | { workspacePath: string; relativePath: string }) => ipcRenderer.invoke('markdown:read-file', data),
     writeFile: (data: ({ absolutePath: string } | { workspacePath: string; relativePath: string }) & { content: string }) => ipcRenderer.invoke('markdown:write-file', data),
@@ -81,8 +89,9 @@ const api = {
   updater: {
     checkForUpdates: () => ipcRenderer.invoke('updater:check-for-updates'),
     openReleasePage: () => ipcRenderer.invoke('updater:open-release-page'),
-    onUpdateAvailable: (cb: (info: { latestVersion: string }) => void) => {
-      const handler = (_: unknown, info: { latestVersion: string }) => cb(info)
+    install: () => ipcRenderer.invoke('updater:install'),
+    onUpdateAvailable: (cb: (info: { currentVersion: string; latestVersion: string }) => void) => {
+      const handler = (_: unknown, info: { currentVersion: string; latestVersion: string }) => cb(info)
       ipcRenderer.on('updater:update-available', handler)
       return () => ipcRenderer.removeListener('updater:update-available', handler)
     },

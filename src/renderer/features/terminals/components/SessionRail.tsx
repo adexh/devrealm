@@ -1,5 +1,6 @@
 import { Command, Terminal, X } from 'lucide-react'
-import { useTerminalStore } from '../../../stores/terminalStore'
+import { selectLayout, useTerminalStore } from '../../../stores/terminalStore'
+import { allSessionIds, orderByIds } from '../../../stores/terminalLayout'
 import { SessionCard } from './SessionCard'
 
 /** Sessions in the selected workspace. Flat, because the tab is the grouping. */
@@ -11,8 +12,9 @@ export function SessionRail({ onQuickSwitch }: { onQuickSwitch: () => void }) {
   const renameSession = useTerminalStore(state => state.renameSession)
   const killWorkspaceSessions = useTerminalStore(state => state.killWorkspaceSessions)
   const railWidth = useTerminalStore(state => state.railWidth)
+  const layout = useTerminalStore(selectLayout)
 
-  const scoped = sessions.filter(session => session.workspaceId === activeWorkspaceId)
+  const scoped = orderByIds(sessions, allSessionIds(layout)).filter(session => session.workspaceId === activeWorkspaceId)
 
   return (
     <aside

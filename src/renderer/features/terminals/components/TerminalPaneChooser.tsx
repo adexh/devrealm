@@ -1,33 +1,36 @@
 import { Plus, Terminal, X } from 'lucide-react'
-import { useTerminalStore } from '../../../stores/terminalStore'
+import { selectLayout, useTerminalStore } from '../../../stores/terminalStore'
+import { paneGroups } from '../../../stores/terminalLayout'
 import { StateDot } from './StateDot'
 
 /**
- * The second pane before anything is in it. Splitting should not decide for
+ * A new pane before anything is in it. Splitting should not decide for
  * you: an existing session beside the current one is often the point.
  */
-export function TerminalPaneChooser() {
+export function TerminalPaneChooser({ groupId }: { groupId: string }) {
   const sessions = useTerminalStore(state => state.sessions)
   const activeWorkspaceId = useTerminalStore(state => state.activeWorkspaceId)
-  const paneIds = useTerminalStore(state => state.paneIds)
+  const activeSessionId = useTerminalStore(state => state.activeSessionId)
+  const layout = useTerminalStore(selectLayout)
   const choosePaneSession = useTerminalStore(state => state.choosePaneSession)
   const openSession = useTerminalStore(state => state.openSession)
-  const toggleSplit = useTerminalStore(state => state.toggleSplit)
+  const closePane = useTerminalStore(state => state.closePane)
 
-  const current = sessions.find(session => session.id === paneIds[0])
+  const onScreen = paneGroups(layout).map(group => group.activeId)
+  const current = sessions.find(session => session.id === activeSessionId)
   const available = sessions.filter(
-    session => session.workspaceId === activeWorkspaceId && !paneIds.includes(session.id)
+    session => session.workspaceId === activeWorkspaceId && !onScreen.includes(session.id)
   )
 
   return (
     <div className="flex-1 min-h-0 bg-tm-0 flex flex-col overflow-hidden">
       <div className="h-10 px-3 bg-tm-1 flex items-center justify-between shrink-0">
         <span className="text-[10px] leading-[14px] font-semibold uppercase tracking-widest text-tm-ink-soft">
-          Second pane
+          New pane
         </span>
         <button
           type="button"
-          onClick={toggleSplit}
+          onClick={() => closePane(groupId)}
           title="Cancel the split"
           className="flex items-center justify-center w-5 h-5 rounded text-tm-ink-dim hover:text-tm-err bg-transparent border-none cursor-pointer"
         >

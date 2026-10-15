@@ -6,7 +6,7 @@ import {
   Box, Btn, Chip, Label, Heading, Mono, Bar, StackedBar, Treemap,
   FolderIcon, AIIcon, Modal,
 } from '../../../components/ui'
-import { fmtSize, relTime } from '../../dashboard'
+import { fmtSize, relTime } from '../../../utils/format'
 import type { Plugin } from '../../ai-config/components/PluginsSkillsSection'
 import { useWorkspaceStore } from '../../../stores/workspaceStore'
 import { useNavigationStore } from '../../../stores/navigationStore'

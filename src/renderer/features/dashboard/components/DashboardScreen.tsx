@@ -16,6 +16,7 @@ import {
 import { useWorkspaceStore } from "../../../stores/workspaceStore";
 import { useNavigationStore } from "../../../stores/navigationStore";
 import { STALE_REPO_MS } from "../../../constants";
+import { fmtSize, relTime } from "../../../utils/format";
 import { WORKSPACE_CREATE_MODES, workspaceCreateModeLabel } from "../constants/workspaceModes";
 import type { WorkspaceCreateMode } from "../types/workspaceMode";
 import { ImportWorkspaceForm } from "./ImportWorkspaceForm";
@@ -835,28 +836,4 @@ function SummaryStat({
       </Mono>
     </Box>
   );
-}
-
-export function fmtSize(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024)
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-}
-
-export function relTime(ts: number): string {
-  const diff = Date.now() - ts;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 2) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days === 1) return "yesterday";
-  if (days < 7) return `${days} days ago`;
-  if (days < 30) return `${Math.floor(days / 7)} weeks ago`;
-  if (days < 365) return `${Math.floor(days / 30)} months ago`;
-  return `${Math.floor(days / 365)} years ago`;
 }

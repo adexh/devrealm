@@ -14,6 +14,7 @@ import { useNavigation } from './hooks/useNavigation'
 import { useWorkspaceStore } from './stores/workspaceStore'
 import { editorTabId, isEditorTab, useNavigationStore, type Tab } from './stores/navigationStore'
 import { useUiStore } from './stores/uiStore'
+import { resolveRepoPath } from './utils/paths'
 
 
 
@@ -22,6 +23,7 @@ const AIConfigScreen = lazy(() => import('./features/ai-config').then(module => 
 const MarkdownEditorScreen = lazy(() => import('./features/markdown-editor').then(module => ({ default: module.MarkdownEditorScreen })))
 const MarketplaceScreen = lazy(() => import('./features/marketplace').then(module => ({ default: module.MarketplaceScreen })))
 const TerminalsScreen = lazy(() => import('./features/terminals').then(module => ({ default: module.TerminalsScreen })))
+const IdesScreen = lazy(() => import('./features/ides').then(module => ({ default: module.IdesScreen })))
 
 type GlobalSearchItem =
   | { id: string; type: 'workspace'; title: string; subtitle: string; workspaceId: string }
@@ -31,18 +33,6 @@ const isMarketplaceView = new URLSearchParams(window.location.search).get('view'
 
 function LoadingView() {
   return <div className="flex-1 flex items-center justify-center"><Spinner /></div>
-}
-
-function isAbsolutePath(value: string): boolean {
-  return value.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(value) || value.startsWith('\\\\')
-}
-
-function resolveRepoSearchPath(repoPath: string, workspace?: Workspace | null): string | null {
-  const trimmedPath = repoPath.trim()
-  if (!trimmedPath) return null
-  if (isAbsolutePath(trimmedPath)) return trimmedPath
-  if (!workspace?.rootPath) return null
-  return `${workspace.rootPath.replace(/[\\/]+$/, '')}/${trimmedPath.replace(/^[\\/]+/, '')}`
 }
 
 export default function App() {
@@ -99,11 +89,11 @@ function MainApp() {
   useEffect(() => {
     // Startup auto-check: the main process only pushes when an update exists.
     // A dismissed commit stays hidden until the remote moves on again.
-    const offAvailable = window.electronAPI.updater.onUpdateAvailable(({ latestVersion }) => {
+    const offAvailable = window.electronAPI.updater.onUpdateAvailable(({ currentVersion, latestVersion }) => {
       isManualCheckRef.current = false
       const dismissed = localStorage.getItem('dismissed_update_version')
       if (dismissed === latestVersion) return
-      setUpdateState({ stage: 'available', latestVersion })
+      setUpdateState({ status: 'available', currentVersion, latestVersion })
     })
     return () => { offAvailable() }
   }, [])
@@ -113,6 +103,7 @@ function MainApp() {
     'Dashboard',
     { id: 'AI Configs', label: 'AI' },
     'Terminals',
+    'IDEs',
     ...markdownEditors.map(editor => ({
       id: editorTabId(editor.id),
       label: `Editor - ${editor.name}`,
@@ -129,16 +120,8 @@ function MainApp() {
               onEditorSettings={() => setEditorSettingsOpen(true)}
               onCheckForUpdates={() => {
                 isManualCheckRef.current = true
-                setUpdateState({ stage: 'checking' })
-                void window.electronAPI.updater.checkForUpdates().then((result) => {
-                  if (result.status === 'available') {
-                    setUpdateState({ stage: 'available', latestVersion: result.latestVersion })
-                  } else if (result.status === 'up-to-date') {
-                    setUpdateState({ stage: 'up-to-date' })
-                  } else {
-                    setUpdateState({ stage: 'error', message: result.message })
-                  }
-                })
+                setUpdateState({ status: 'checking' })
+                void window.electronAPI.updater.checkForUpdates().then(setUpdateState)
               }}
             />
             <ThemeToggle dark={dark} onToggle={() => setDark(!dark)} />
@@ -160,6 +143,10 @@ function MainApp() {
         ) : activeTab === 'Terminals' ? (
           <Suspense fallback={<LoadingView />}>
             <TerminalsScreen />
+          </Suspense>
+        ) : activeTab === 'IDEs' ? (
+          <Suspense fallback={<LoadingView />}>
+            <IdesScreen />
           </Suspense>
         ) : activeTab === 'Dashboard' ? (
           selectedWorkspace
@@ -196,8 +183,15 @@ function MainApp() {
         {updateState && (
           <UpdateNotificationModal
             state={updateState}
+            onInstall={(currentVersion, latestVersion) => {
+              setUpdateState({ status: 'installing', currentVersion, latestVersion })
+              // Only settles when the update did not take; on success this app is replaced first.
+              void window.electronAPI.updater.install().then(({ message }) => {
+                setUpdateState({ status: 'error', currentVersion, message })
+              })
+            }}
             onClose={() => {
-              if (!isManualCheckRef.current && updateState.stage === 'available') {
+              if (!isManualCheckRef.current && updateState.status === 'available') {
                 localStorage.setItem('dismissed_update_version', updateState.latestVersion)
               }
               setUpdateState(null)
@@ -582,7 +576,7 @@ function GlobalSearchPanel() {
     }))
     const repoItems: GlobalSearchItem[] = repos.flatMap(repo => {
       const owningWs = repoWorkspaceMap.get(repo.id) ?? null
-      const repoPath = resolveRepoSearchPath(repo.path, owningWs)
+      const repoPath = resolveRepoPath(repo.path, owningWs)
       if (!repoPath) return []
       return {
         id: `repo:${repo.id}`,

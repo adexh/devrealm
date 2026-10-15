@@ -145,3 +145,4 @@ release
 .DS_Store
 
 webmotion
+tests/integration/screenshots/

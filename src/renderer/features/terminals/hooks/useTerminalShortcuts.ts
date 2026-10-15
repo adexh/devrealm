@@ -13,49 +13,56 @@ export function useTerminalShortcuts(onNewShell: () => void): void {
   const toggleMaximized = useTerminalStore(state => state.toggleMaximized)
 
   useEffect(() => {
+    // Captured before xterm sees the key: xterm turns Alt+arrows into escape
+    // sequences for the shell and stops them there, so ⌥↑ / ⌥↓ never bubbled up.
+    function claim(event: KeyboardEvent) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+
     function onKey(event: KeyboardEvent) {
       // Only the platform's own modifier. Accepting ctrl as well claimed Ctrl+B
       // and Ctrl+T on macOS, which xterm has already handed to the pty, so
       // readline moved the cursor and the drawer toggled on the same keypress.
       const mod = window.electronAPI.platform === 'darwin' ? event.metaKey : event.ctrlKey
       if (mod && event.key === '1') {
-        event.preventDefault()
+        claim(event)
         toggleRail()
         return
       }
       if (mod && event.key.toLowerCase() === 'b') {
-        event.preventDefault()
+        claim(event)
         toggleDrawer()
         return
       }
       if (mod && event.key.toLowerCase() === 't') {
-        event.preventDefault()
+        claim(event)
         onNewShell()
         return
       }
       if (mod && event.key === '\\') {
-        event.preventDefault()
+        claim(event)
         toggleSplit()
         return
       }
       // Escape only leaves maximized; it must stay available to the shell.
       if (event.key === 'Escape' && useTerminalStore.getState().maximized) {
-        event.preventDefault()
+        claim(event)
         toggleMaximized()
         return
       }
       if (event.altKey && event.key === 'ArrowUp') {
-        event.preventDefault()
+        claim(event)
         focusAdjacentSession(-1)
         return
       }
       if (event.altKey && event.key === 'ArrowDown') {
-        event.preventDefault()
+        claim(event)
         focusAdjacentSession(1)
       }
     }
 
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
   }, [toggleRail, toggleDrawer, focusAdjacentSession, toggleSplit, toggleMaximized, onNewShell])
 }

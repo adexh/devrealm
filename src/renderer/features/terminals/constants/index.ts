@@ -1,3 +1,4 @@
+import type { PaneZone } from '../../../stores/terminalLayout'
 import type { SessionState, StatTone } from '../types'
 
 export const STATE_LABEL: Record<SessionState, string> = {
@@ -48,9 +49,17 @@ export const IGNORED_DIR_NAMES = [
 export const RAIL_WIDTH = { min: 180, max: 460, default: 256 } as const
 export const DRAWER_WIDTH = { min: 200, max: 520, default: 288 } as const
 
-/**
- * Scope for shells that belong to no workspace. Not a real workspace id, so it
- * never collides with one from the store.
- */
-export const HOME_WORKSPACE_ID = '__home__'
-export const HOME_WORKSPACE_NAME = 'Home'
+export const SPLIT_RATIO = { min: 0.1, max: 0.9 } as const
+
+/** A drag needs some payload to start; what is dragged is tracked in the store. */
+export const SESSION_DRAG_TYPE = 'application/x-devrealm-session'
+
+export const DROP_PREVIEW_CLASS: Record<PaneZone, string> = {
+  center: 'absolute pointer-events-none rounded-md bg-tm-ok/20 border-2 border-tm-ok/80 shadow-[0_0_0_9999px_rgb(0_0_0/0.4),inset_0_0_32px_color-mix(in_srgb,var(--tm-ok)_45%,transparent)] transition-all duration-150 ease-out inset-1',
+  left: 'absolute pointer-events-none rounded-md bg-tm-ok/20 border-2 border-tm-ok/80 shadow-[0_0_0_9999px_rgb(0_0_0/0.4),inset_0_0_32px_color-mix(in_srgb,var(--tm-ok)_45%,transparent)] transition-all duration-150 ease-out inset-y-1 left-1 w-[calc(50%-0.375rem)]',
+  right: 'absolute pointer-events-none rounded-md bg-tm-ok/20 border-2 border-tm-ok/80 shadow-[0_0_0_9999px_rgb(0_0_0/0.4),inset_0_0_32px_color-mix(in_srgb,var(--tm-ok)_45%,transparent)] transition-all duration-150 ease-out inset-y-1 right-1 w-[calc(50%-0.375rem)]',
+  top: 'absolute pointer-events-none rounded-md bg-tm-ok/20 border-2 border-tm-ok/80 shadow-[0_0_0_9999px_rgb(0_0_0/0.4),inset_0_0_32px_color-mix(in_srgb,var(--tm-ok)_45%,transparent)] transition-all duration-150 ease-out inset-x-1 top-1 h-[calc(50%-0.375rem)]',
+  bottom: 'absolute pointer-events-none rounded-md bg-tm-ok/20 border-2 border-tm-ok/80 shadow-[0_0_0_9999px_rgb(0_0_0/0.4),inset_0_0_32px_color-mix(in_srgb,var(--tm-ok)_45%,transparent)] transition-all duration-150 ease-out inset-x-1 bottom-1 h-[calc(50%-0.375rem)]',
+}
+
+export { HOME_WORKSPACE_ID, HOME_WORKSPACE_NAME } from '../../../constants'

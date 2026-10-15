@@ -137,18 +137,45 @@ async function main() {
         homeSession.result?.cwd)
   await b.control('close', { id: homeSession.result.id })
 
+  // An attach inside the coalescing window got output twice, in its snapshot
+  // and again as data; a pane moved by drag and drop showed zsh's redraw twice.
+  const dup = await connect(SOCK)
+  await dup.hello()
+  const dupSession = await dup.control('open', {
+    workspaceId: 'ws1', repoId: 'r1', repoName: 'dup', title: 'dup',
+    cwd: ROOT, cols: 80, rows: 24,
+  })
+  const dupId = dupSession.result.id
+  const segments = []
+  dup.onSnapshot(text => segments.push(text))
+  dup.onData(text => { if (segments.length > 0) segments[segments.length - 1] += text })
+  const dupRef = await dup.control('attach', { id: dupId, cols: 80, rows: 24 })
+  await wait(900)
+  // Quoted apart so the echoed command line never contains the marker itself.
+  dup.input(dupRef.result.ref, 'for i in 1 2 3 4 5 6 7 8; do echo DUP""MARK$i; sleep 0.02; done\r')
+  for (let i = 0; i < 60; i++) {
+    void dup.control('attach', { id: dupId, cols: 80, rows: 24 })
+    await wait(5)
+  }
+  await wait(800)
+  const repeated = segments.find(segment => (segment.match(/DUPMARK\d/g) ?? []).length !== new Set(segment.match(/DUPMARK\d/g)).size)
+  check('13 an attach never receives output its snapshot already holds', segments.length > 1 && !repeated,
+        repeated ? JSON.stringify(repeated.match(/DUPMARK\d/g)) : `${segments.length} attaches`)
+  await dup.control('close', { id: dupId })
+  dup.close()
+
   const stranger = await connect(SOCK)
   const refused = await new Promise(resolve => {
     stranger.socket.once('close', () => resolve('closed'))
     stranger.helloWithVersion(9999).then(ack => resolve(ack))
   })
-  check('13 an unsupported protocol version is refused',
+  check('14 an unsupported protocol version is refused',
         refused === 'closed' || refused?.ok === false,
         typeof refused === 'string' ? refused : `ok=${refused?.ok}`)
   stranger.close()
 
   const closed = await b.control('close', { id })
-  check('14 close tears the session down', closed.ok === true)
+  check('15 close tears the session down', closed.ok === true)
   b.close()
   process.kill(daemon.pid, 'SIGTERM')
   // Wait for it to go before deleting its data dir: the daemon rewrites the
