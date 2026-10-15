@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { AuthUser } from '../shared/types'
+import type { SaveTemplateRequest, ScaffoldRequest } from '../shared/templates'
 
 const initialData = ipcRenderer.sendSync('workspaces:initial-data')
 
@@ -111,7 +112,19 @@ const api = {
       return () => ipcRenderer.removeListener('auth:error', handler)
     },
   },
+  templates: {
+    list: () => ipcRenderer.invoke('templates:list'),
+    capture: (sourcePath: string) => ipcRenderer.invoke('templates:capture', sourcePath),
+    save: (request: SaveTemplateRequest) => ipcRenderer.invoke('templates:save', request),
+    delete: (id: string) => ipcRenderer.invoke('templates:delete', id),
+    plan: (request: ScaffoldRequest) => ipcRenderer.invoke('templates:plan', request),
+    apply: (request: ScaffoldRequest) => ipcRenderer.invoke('templates:apply', request),
+    export: (id: string) => ipcRenderer.invoke('templates:export', id),
+    import: () => ipcRenderer.invoke('templates:import'),
+  },
   claude: {
+    userHome: () => ipcRenderer.invoke('claude:user-home'),
+    mcpServers: (rootPath: string) => ipcRenderer.invoke('claude:mcp-servers', rootPath),
     pluginsAndSkills: (workspacePath?: string) => ipcRenderer.invoke('claude:plugins-and-skills', workspacePath),
     readSettings: (workspacePath?: string) => ipcRenderer.invoke('claude:read-settings', workspacePath),
     writeSettings: (data: { workspacePath: string; scope: 'shared' | 'local'; values: Record<string, unknown> }) => ipcRenderer.invoke('claude:write-settings', data),

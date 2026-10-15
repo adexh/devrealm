@@ -3,6 +3,7 @@ import path from 'path'
 import { registerIpcHandlers } from './ipc'
 import { registerTerminalIpcHandlers } from './terminals/ipc'
 import { registerIdeIpcHandlers } from './ides/ipc'
+import { registerTemplateIpcHandlers } from './templates/ipc'
 import { readConfig, saveAuthToken, saveAuthUser } from './store'
 import { fetchAuthUser } from './auth'
 import { syncAllWorkspaceGithub } from './workspaceGithub'
@@ -142,6 +143,7 @@ app.whenReady().then(() => {
   registerIpcHandlers()
   registerTerminalIpcHandlers(() => mainWindow?.webContents ?? null)
   registerIdeIpcHandlers()
+  registerTemplateIpcHandlers()
   const win = createWindow()
   void setupAutoUpdater(win)
   startWorkspaceGithubPolling()

@@ -3,6 +3,7 @@ import type {
   Repo,
   ClaudeSettingsSnapshot,
   ClaudeSettingsScope,
+  McpServer,
   ClaudeMdSnapshot,
   MarkdownFileContent,
   MarkdownFileIdentity,
@@ -27,6 +28,7 @@ import type {
   TerminalSessionInfo,
 } from '../shared/terminal'
 import type { IdeId, IdeSnapshot, IdeSnapshotOptions, IdeWindowRef } from '../shared/ide'
+import type { SaveTemplateRequest, ScaffoldPlan, ScaffoldRequest, ScaffoldResult, TemplateItem, TemplateSummary } from '../shared/templates'
 
 interface ElectronAPI {
   platform: string
@@ -121,7 +123,19 @@ interface ElectronAPI {
     openReleasePage: () => Promise<void>
     onUpdateAvailable: (cb: (info: { latestVersion: string }) => void) => () => void
   }
+  templates: {
+    list: () => Promise<TemplateSummary[]>
+    capture: (sourcePath: string) => Promise<TemplateItem[]>
+    save: (request: SaveTemplateRequest) => Promise<TemplateSummary>
+    delete: (id: string) => Promise<void>
+    plan: (request: ScaffoldRequest) => Promise<ScaffoldPlan>
+    apply: (request: ScaffoldRequest) => Promise<ScaffoldResult>
+    export: (id: string) => Promise<string | null>
+    import: () => Promise<TemplateSummary | null>
+  }
   claude: {
+    userHome: () => Promise<string>
+    mcpServers: (rootPath: string) => Promise<McpServer[]>
     pluginsAndSkills: (workspacePath?: string) => Promise<{ id: string; name: string; version: string; description: string; enabled: boolean; skills: { name: string; description: string }[] }[]>
     readSettings: (workspacePath?: string) => Promise<ClaudeSettingsSnapshot>
     writeSettings: (data: { workspacePath: string; scope: ClaudeSettingsScope; values: Record<string, unknown> }) => Promise<ClaudeSettingsSnapshot>

@@ -3,13 +3,12 @@ import { Box, Btn, Chip, Heading, Label, Mono, AIIcon, InfoPopover, Modal } from
 import { MarketplaceScreen } from '../../marketplace'
 import { McpRegistryScreen } from './McpRegistryScreen'
 import { SkillCreatorModal } from './SkillCreatorModal'
+import { RemoveButton } from './RemoveButton'
+import { ScrollTable } from './ScrollTable'
 import { removePlugin, setPluginEnabled } from '../ipc/plugins'
+import { MCP_SCOPE_LABELS } from '../constants/mcp'
+import type { McpServer } from '../../../../shared/types'
 
-export type McpServer = {
-  name: string
-  type: string
-  command: string
-}
 
 export type Plugin = {
   id: string
@@ -33,21 +32,6 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
         className="absolute top-0.5 rounded-full bg-white"
         style={{ width: 13, height: 13, transition: 'transform 0.15s', transform: `translateX(${on ? 15 : 2}px)` }}
       />
-    </div>
-  )
-}
-
-function ScrollTable({ children, count }: { children: React.ReactNode; count: number }) {
-  return (
-    <div className="border border-t-line rounded overflow-hidden">
-      <div className="overflow-y-auto" style={{ maxHeight: '13rem' }}>
-        <table className="w-full text-[11px] border-collapse">{children}</table>
-      </div>
-      {count > 5 && (
-        <div className="px-2.5 py-1 border-t border-t-line bg-t-panel">
-          <Mono size={10} soft>{count} items · scroll to see all</Mono>
-        </div>
-      )}
     </div>
   )
 }
@@ -125,7 +109,7 @@ export function PluginsSkillsSection({
       {loading && <Mono size={12} soft className="block mt-3">Loading plugins…</Mono>}
 
       {!loading && (
-        <div className="mt-3 grid grid-cols-3 gap-4 items-start">
+        <div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(340px,1fr))] gap-4 items-start">
 
           {/* ── Plugins ── */}
           <div className="flex flex-col gap-2">
@@ -141,42 +125,43 @@ export function PluginsSkillsSection({
             {plugins.length === 0 ? (
               <div className="text-[11px] text-t-ink-soft py-1">No plugins enabled for this workspace.</div>
             ) : (
-              <ScrollTable count={plugins.length}>
-                <thead className="sticky top-0 bg-t-panel">
-                  <tr className="border-b border-t-line">
-                    <th className="text-left px-2.5 py-2 font-medium text-t-ink-soft">Plugin</th>
-                    <th className="text-left px-2.5 py-2 font-medium text-t-ink-soft">Description</th>
-                    <th className="px-2.5 py-2 font-medium text-t-ink-soft text-center">On</th>
-                    <th className="px-2.5 py-2" />
+              <ScrollTable
+                count={plugins.length}
+                columns={['w-[38%]', '', 'w-12', 'w-8']}
+                head={(
+                  <tr>
+                    <th className="text-left px-2.5 py-2 font-medium text-t-ink-soft whitespace-nowrap">Plugin</th>
+                    <th className="text-left px-2.5 py-2 font-medium text-t-ink-soft whitespace-nowrap">Description</th>
+                    <th className="px-1 py-2 font-medium text-t-ink-soft text-center whitespace-nowrap">On</th>
+                    <th className="py-2"><span className="sr-only">Remove</span></th>
                   </tr>
-                </thead>
-                <tbody>
-                  {plugins.map((plugin, i) => {
-                    const isBusy = busy === plugin.id
-                    const isOn = plugin.enabled
-                    return (
-                      <tr
-                        key={plugin.id}
-                        className={`border-b border-t-line last:border-b-0 ${i % 2 === 0 ? 'bg-t-bg' : ''}`}
-                        style={{ opacity: isBusy ? 0.5 : 1 }}
-                      >
-                        <td className="px-2.5 py-2 max-w-28">
-                          <div className="font-medium text-t-ink truncate">{plugin.name}</div>
-                          <Chip className="mt-0.5">{plugin.version}</Chip>
-                        </td>
-                        <td className="px-2.5 py-2 text-t-ink-soft max-w-40">
-                          <span className="block truncate">{plugin.description || '—'}</span>
-                        </td>
-                        <td className="px-2.5 py-2 text-center">
-                          <Toggle on={isOn} onChange={() => handleTogglePlugin(plugin.id, isOn)} />
-                        </td>
-                        <td className="px-2.5 py-2 whitespace-nowrap">
-                          <Btn onClick={() => handleRemovePlugin(plugin.id)}>Remove</Btn>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
+                )}
+              >
+                {plugins.map((plugin, i) => {
+                  const isBusy = busy === plugin.id
+                  const isOn = plugin.enabled
+                  return (
+                    <tr
+                      key={plugin.id}
+                      className={`border-b border-t-line last:border-b-0 ${i % 2 === 0 ? 'bg-t-bg' : ''}`}
+                      style={{ opacity: isBusy ? 0.5 : 1 }}
+                    >
+                      <td className="px-2.5 py-2">
+                        <div className="font-medium text-t-ink truncate" title={plugin.name}>{plugin.name}</div>
+                        <Chip className="mt-0.5">{plugin.version}</Chip>
+                      </td>
+                      <td className="px-2.5 py-2 text-t-ink-soft">
+                        <span className="block truncate" title={plugin.description}>{plugin.description || '—'}</span>
+                      </td>
+                      <td className="px-1 py-2 text-center">
+                        <Toggle on={isOn} onChange={() => handleTogglePlugin(plugin.id, isOn)} />
+                      </td>
+                      <td className="py-2 pr-1.5 text-center">
+                        <RemoveButton onClick={() => handleRemovePlugin(plugin.id)} />
+                      </td>
+                    </tr>
+                  )
+                })}
               </ScrollTable>
             )}
 
@@ -197,41 +182,42 @@ export function PluginsSkillsSection({
             {allSkills.length === 0 ? (
               <div className="text-[11px] text-t-ink-soft py-1">No skills available. Install a plugin that contributes skills.</div>
             ) : (
-              <ScrollTable count={allSkills.length}>
-                <thead className="sticky top-0 bg-t-panel">
-                  <tr className="border-b border-t-line">
-                    <th className="text-left px-2.5 py-2 font-medium text-t-ink-soft">Skill</th>
-                    <th className="text-left px-2.5 py-2 font-medium text-t-ink-soft">Description</th>
-                    <th className="px-2.5 py-2 font-medium text-t-ink-soft text-center">On</th>
-                    <th className="px-2.5 py-2" />
+              <ScrollTable
+                count={allSkills.length}
+                columns={['w-[38%]', '', 'w-12', 'w-8']}
+                head={(
+                  <tr>
+                    <th className="text-left px-2.5 py-2 font-medium text-t-ink-soft whitespace-nowrap">Skill</th>
+                    <th className="text-left px-2.5 py-2 font-medium text-t-ink-soft whitespace-nowrap">Description</th>
+                    <th className="px-1 py-2 font-medium text-t-ink-soft text-center whitespace-nowrap">On</th>
+                    <th className="py-2"><span className="sr-only">Remove</span></th>
                   </tr>
-                </thead>
-                <tbody>
-                  {allSkills.map((skill, i) => {
-                    const key = `${skill.pluginId}:${skill.name}`
-                    const isOn = !disabledSkills.has(key)
-                    return (
-                      <tr
-                        key={key}
-                        className={`border-b border-t-line last:border-b-0 ${i % 2 === 0 ? 'bg-t-bg' : ''}`}
-                      >
-                        <td className="px-2.5 py-2 max-w-28">
-                          <div className="font-medium text-t-ink truncate">/{skill.name}</div>
-                          <Mono size={10} soft className="block truncate">{skill.pluginName}</Mono>
-                        </td>
-                        <td className="px-2.5 py-2 text-t-ink-soft max-w-40">
-                          <span className="block truncate">{skill.description || '—'}</span>
-                        </td>
-                        <td className="px-2.5 py-2 text-center">
-                          <Toggle on={isOn} onChange={v => handleToggleSkill(key, v)} />
-                        </td>
-                        <td className="px-2.5 py-2 whitespace-nowrap">
-                          <Btn onClick={() => handleRemoveSkill(key)}>Remove</Btn>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
+                )}
+              >
+                {allSkills.map((skill, i) => {
+                  const key = `${skill.pluginId}:${skill.name}`
+                  const isOn = !disabledSkills.has(key)
+                  return (
+                    <tr
+                      key={key}
+                      className={`border-b border-t-line last:border-b-0 ${i % 2 === 0 ? 'bg-t-bg' : ''}`}
+                    >
+                      <td className="px-2.5 py-2">
+                        <div className="font-medium text-t-ink truncate" title={`/${skill.name}`}>/{skill.name}</div>
+                        <Mono size={10} soft className="block truncate">{skill.pluginName}</Mono>
+                      </td>
+                      <td className="px-2.5 py-2 text-t-ink-soft">
+                        <span className="block truncate" title={skill.description}>{skill.description || '—'}</span>
+                      </td>
+                      <td className="px-1 py-2 text-center">
+                        <Toggle on={isOn} onChange={v => handleToggleSkill(key, v)} />
+                      </td>
+                      <td className="py-2 pr-1.5 text-center">
+                        <RemoveButton onClick={() => handleRemoveSkill(key)} />
+                      </td>
+                    </tr>
+                  )
+                })}
               </ScrollTable>
             )}
 
@@ -252,32 +238,37 @@ export function PluginsSkillsSection({
             {mcpServers.length === 0 ? (
               <div className="text-[11px] text-t-ink-soft py-1">No MCP servers configured for this workspace.</div>
             ) : (
-              <ScrollTable count={mcpServers.length}>
-                <thead className="sticky top-0 bg-t-panel">
-                  <tr className="border-b border-t-line">
-                    <th className="text-left px-2.5 py-2 font-medium text-t-ink-soft">Name</th>
-                    <th className="text-left px-2.5 py-2 font-medium text-t-ink-soft">Type</th>
-                    <th className="text-left px-2.5 py-2 font-medium text-t-ink-soft">Command / URL</th>
+              <ScrollTable
+                count={mcpServers.length}
+                columns={['w-[32%]', 'w-16', 'w-18', '']}
+                head={(
+                  <tr>
+                    <th className="text-left px-2.5 py-2 font-medium text-t-ink-soft whitespace-nowrap">Name</th>
+                    <th className="text-left px-2.5 py-2 font-medium text-t-ink-soft whitespace-nowrap">Type</th>
+                    <th className="text-left px-2.5 py-2 font-medium text-t-ink-soft whitespace-nowrap">Scope</th>
+                    <th className="text-left px-2.5 py-2 font-medium text-t-ink-soft whitespace-nowrap">Command / URL</th>
                   </tr>
-                </thead>
-                <tbody>
-                  {mcpServers.map((server, i) => (
-                    <tr
-                      key={server.name}
-                      className={`border-b border-t-line last:border-b-0 ${i % 2 === 0 ? 'bg-t-bg' : ''}`}
-                    >
-                      <td className="px-2.5 py-2 max-w-24">
-                        <span className="block font-medium text-t-ink truncate">{server.name}</span>
-                      </td>
-                      <td className="px-2.5 py-2">
-                        <Chip>{server.type}</Chip>
-                      </td>
-                      <td className="px-2.5 py-2 max-w-40">
-                        <Mono size={10} className="block truncate">{server.command}</Mono>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
+                )}
+              >
+                {mcpServers.map((server, i) => (
+                  <tr
+                    key={`${server.scope}:${server.name}`}
+                    className={`border-b border-t-line last:border-b-0 ${i % 2 === 0 ? 'bg-t-bg' : ''}`}
+                  >
+                    <td className="px-2.5 py-2">
+                      <span className="block font-medium text-t-ink truncate" title={server.name}>{server.name}</span>
+                    </td>
+                    <td className="px-2.5 py-2">
+                      <Chip>{server.type}</Chip>
+                    </td>
+                    <td className="px-2.5 py-2">
+                      <span className="text-[11px] text-t-ink-soft" title={MCP_SCOPE_LABELS[server.scope].hint}>{MCP_SCOPE_LABELS[server.scope].label}</span>
+                    </td>
+                    <td className="px-2.5 py-2">
+                      <span className="block truncate font-mono text-[11px] text-t-ink" title={server.command}>{server.command}</span>
+                    </td>
+                  </tr>
+                ))}
               </ScrollTable>
             )}
 

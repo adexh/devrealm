@@ -2,16 +2,18 @@ import { useState } from 'react'
 import type { ClaudeMdFile, ClaudeMdSnapshot } from '../../../../shared/types'
 import { Box, Btn, Chip, Heading, Label, Mono, FolderIcon, AIIcon, InfoPopover } from '../../../components/ui'
 import { useNavigationStore } from '../../../stores/navigationStore'
-import { CLAUDE_MD_CATALOG, type ClaudeMdRootSlot, type ClaudeMdFolderSlot } from '../catalog/claudeMdCatalog'
+import { CLAUDE_MD_CATALOG, USER_CLAUDE_MD_SLOT, type ClaudeMdRootSlot, type ClaudeMdFolderSlot } from '../catalog/claudeMdCatalog'
 
 export function ClaudeMdSection({
   workspacePath,
   snapshot,
   loading,
+  userScope = false,
 }: {
   workspacePath?: string
   snapshot: ClaudeMdSnapshot | null
   loading: boolean
+  userScope?: boolean
 }) {
   const { openMarkdownEditor } = useNavigationStore()
   const [addingTo, setAddingTo] = useState<string | null>(null)
@@ -75,7 +77,9 @@ export function ClaudeMdSection({
     setNewFileName('')
   }
 
-  const rootSlots = CLAUDE_MD_CATALOG.filter((s): s is ClaudeMdRootSlot => s.kind === 'rootFile')
+  const rootSlots = userScope
+    ? [USER_CLAUDE_MD_SLOT]
+    : CLAUDE_MD_CATALOG.filter((s): s is ClaudeMdRootSlot => s.kind === 'rootFile')
   const folderSlots = CLAUDE_MD_CATALOG.filter((s): s is ClaudeMdFolderSlot => s.kind === 'folder')
 
   return (
@@ -108,7 +112,7 @@ export function ClaudeMdSection({
               return (
                 <div key={slot.relativePath}>
                   <div className="flex items-center gap-3 py-1.5">
-                    <Mono size={12} className="w-40 shrink-0">{slot.relativePath}</Mono>
+                    <Mono size={12} className="w-40 shrink-0">{slot.label}</Mono>
                     <InfoPopover title={slot.label} description={slot.description} />
                     {exists
                       ? <Chip accent>configured</Chip>

@@ -9,6 +9,15 @@ export type AIConfig = {
 
 export type AIConfigOverride = Partial<AIConfig>
 
+export type McpServerScope = 'local' | 'project' | 'user' | 'plugin'
+
+export type McpServer = {
+  name: string
+  type: string
+  command: string
+  scope: McpServerScope
+}
+
 export type ClaudeSettingsScope = 'shared' | 'local'
 
 export type ClaudeSettingsFile = {

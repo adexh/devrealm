@@ -1,6 +1,7 @@
 import { Box, Btn, Heading, InfoPopover, Label, Mono, FolderIcon, AIIcon } from '../../../components/ui'
 import { useWorkspaceStore } from '../../../stores/workspaceStore'
 import { useNavigationStore } from '../../../stores/navigationStore'
+import { GLOBAL_AI_CONFIG_ID, GLOBAL_AI_CONFIG_LABEL } from '../constants/scope'
 
 export function AIConfigEmpty({ onSelect }: { onSelect: (id: string) => void }) {
   const { workspaces, repos } = useWorkspaceStore()
@@ -21,6 +22,20 @@ export function AIConfigEmpty({ onSelect }: { onSelect: (id: string) => void }) 
           <Heading size={20}>Manage your AI configuration from the UI</Heading>
           <div className="text-[13px] text-t-ink-soft leading-[1.55]">
             Pick a workspace to manage its AI setup — settings, skills, plugins, MCP servers, commands, and CLAUDE.md files — all in one place.
+          </div>
+
+          <div className="w-full mt-2 text-left">
+            <Label className="mb-1.5">Global user settings</Label>
+            <Box className="mt-1.5 p-1 bg-t-bg" style={{ boxShadow: '0 4px 12px var(--t-hatch)' }}>
+              <div
+                onClick={() => onSelect(GLOBAL_AI_CONFIG_ID)}
+                className="flex items-center gap-2 px-2.5 py-2 rounded-[3px] text-[13px] cursor-pointer hover:bg-t-panel"
+              >
+                <AIIcon size={12} />
+                <span className="flex-1">{GLOBAL_AI_CONFIG_LABEL}</span>
+                <Mono size={10} soft>~/.claude · every project</Mono>
+              </div>
+            </Box>
           </div>
 
           {workspaces.length === 0 ? (

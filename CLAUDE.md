@@ -30,6 +30,7 @@ npm run smoke:daemon   # drives the real PTY daemon over its socket
 npm run smoke:main     # drives the main-process DaemonClient under Electron
 npm run smoke:renderer # drives a real BrowserWindow with the real preload
 npm run smoke:ides     # IDE window listing and process classification, plus a live VS Code snapshot
+npm run smoke:templates # AI scaffolding templates: capture, merge/override plans, export/import
 ```
 
 From a VS Code terminal or a Claude Code session, run the smoke suites with
@@ -57,7 +58,7 @@ This is an **Electron desktop app** for managing developer workspaces, git repos
 **Renderer process** (`src/renderer/`):
 - React 19, bundled by Vite with Tailwind CSS 4.
 - All communication to the main process goes through `window.electronAPI` (never `require` or Node APIs directly).
-- `App.tsx` — Root component; drives the tab layout (Dashboard / AI / Terminals / IDEs, plus editor tabs), global fuzzy search (Fuse.js), and workspace/repo state.
+- `App.tsx` — Root component; drives the tab layout (Dashboard / AI Configs / Terminals / IDEs, plus editor tabs), global fuzzy search (Fuse.js), and workspace/repo state.
 - `features/` — Domain modules: `dashboard`, `workspace`, `ai-config`, `markdown-editor`, `marketplace`, `terminals`, `ides`.
 - `utils/` — Pure helpers more than one feature needs (`format.ts` for sizes and relative times, `paths.ts` for repo path resolution). A helper used by two features lives here, never exported from one feature for another to import.
 - `components/ui.tsx` — Shared primitives (Tabs, Modal, Box, icons).
@@ -67,15 +68,19 @@ This is an **Electron desktop app** for managing developer workspaces, git repos
 
 **IDE manager** (`src/main/ides/`): lists the running VS Code's windows, maps each to a DevRealm repo by folder name, and totals its processes' CPU and memory from `ps`. Windows come from macOS Accessibility (`osascript`) when granted and from `code --status` otherwise; focus goes through `code <folder>`, close and quit through AppleScript. Everything is request/response over `ides:*` IPC and the renderer polls. **Read `docs/ides-implementation.md` before working on this feature**; `docs/ides-product.md` says what it is for.
 
-**Shared** (`src/shared/`): types shared across processes — `types.ts` (`Workspace`, `Repo`, `ClaudeSettingsFile`, ...), `terminal.ts` (session and control-plane shapes), `terminalConstants.ts` (protocol values, Buffer-free so the renderer can import it), `ide.ts` (IDE window and process snapshot shapes).
+**AI configuration templates** (`src/main/templates/`): a template is a saved, item-by-item selection of a folder's AI configuration: CLAUDE.md and AGENTS.md, plugins, skills, MCP servers, agents, commands, the other Claude Code settings, and hook files. `settings.local.json` and `CLAUDE.local.md` are offered as personal items, unticked by default, and `.claude/worktrees/` is never read or written. `items.ts` turns captured files into those items and narrows a capture to the chosen ones, trimming unchosen plugins and MCP servers out of `settings.json` and `.mcp.json`. `scaffold.ts` captures, plans and writes. Both are Electron-free so `smoke:templates` runs them under plain Node. `plugins.ts` installs the template's plugins with `claude plugin install` through the user's login shell, `--scope user` when the target is the home folder and `--scope project` otherwise, adding the marketplace first from the source recorded at save time. `library.ts` persists and `ipc.ts` owns the `templates:*` handlers. Installing has two modes: `merge` creates missing files, deep-merges JSON (existing values win, arrays gain entries) and keeps other existing files; `override` replaces them. Every write path is checked against an allow-list, and plugin ids and marketplace sources against strict patterns, so an imported template cannot write outside the AI config or inject shell arguments. A template has a kind: `project`, `workspace` or `user` (shown as Global, saved from Global user settings). When the source or target is the home folder, only `~/.claude/CLAUDE.md`, the settings files, top-level hook files and the agents, commands, skills, rules and output-styles folders are read or written, since `~/.claude` also holds transcripts, history and credentials; a project `CLAUDE.md` installs as `~/.claude/CLAUDE.md` and other root files are skipped. The AI tab's file tree applies the same allow-list to creating and deleting in the home folder, and `~/.claude` itself can never be deleted. Installed files that start with `#!` are made executable so hook scripts run. All UI lives in the AI tab: Save as template and Scaffold from template open `SaveTemplateModal` and `TemplatesModal` in `features/ai-config`.
+
+**Shared** (`src/shared/`): types shared across processes — `types.ts` (`Workspace`, `Repo`, `ClaudeSettingsFile`, ...), `terminal.ts` (session and control-plane shapes), `terminalConstants.ts` (protocol values, Buffer-free so the renderer can import it), `ide.ts` (IDE window and process snapshot shapes), `templates.ts` (template, scaffold plan and result shapes).
 
 **Node-only shared** (`src/shared/node/`): code the main process and the daemon both need but the renderer must never load, currently `terminalProtocol.ts` (frame encode/decode, uses `Buffer`). The whole directory is excluded from the renderer's tsconfig. Put anything touching Node builtins here, not in `src/shared/`.
 
 ### Key Data Flows
 
 - **Workspace/repo data**: persisted to `~/.workspace-manager/workspaces.json` by `store.ts`; read/written exclusively through IPC.
+- **Templates**: one JSON file per template at `~/.workspace-manager/templates/<id>.json`, written atomically. Exports are `<name>.devrealm-template.json` (`{ format, version, template }`); imports are validated and get a new id.
 - **Terminal sessions**: written to `~/.workspace-manager/terminals/manifest.json` by the daemon's `Registry`, atomically (write to a temp file, then rename), so a crash mid-write cannot truncate it.
 - **Claude settings**: `ipc.ts` reads and writes `.claude/settings.json` and `.claude/settings.local.json` inside each workspace directory.
+- **MCP servers**: `src/main/mcpServers.ts` lists what Claude Code loads in a folder: local scope from `~/.claude.json` `projects[path]`, project scope from `.mcp.json`, user scope from `~/.claude.json` `mcpServers`, and the servers of enabled plugins. claude.ai connectors live in the account and are not listed. Claude Code does not read `mcpServers` from `settings.json`.
 - **Plugins/Skills**: discovered from `~/.claude/plugins/`; marketplace manifests fetched from GitHub raw content URLs.
 - **Markdown files**: edited with Lexical (`src/renderer/features/markdown-editor/`); paths can be absolute or workspace-relative.
 - **Git operations**: `simple-git` for clone/pull; `code` CLI spawned for VSCode integration.
