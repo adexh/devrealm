@@ -42,7 +42,7 @@ export type ScaffoldTemplate = TemplateContent & {
 
 export type TemplateDraft = Omit<ScaffoldTemplate, 'id' | 'createdAt' | 'updatedAt'>
 
-export type TemplateSummary = ScaffoldTemplate & { items: TemplateItem[] }
+export type TemplateSummary = Omit<ScaffoldTemplate, 'files'> & { items: TemplateItem[] }
 
 export type SaveTemplateRequest = {
   sourcePath: string

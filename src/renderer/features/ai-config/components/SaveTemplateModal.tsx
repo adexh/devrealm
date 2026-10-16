@@ -121,7 +121,7 @@ export function SaveTemplateModal({ sourcePath, sourceLabel, kind, onClose }: {
           {items && <TemplateItemGroups items={items} selected={selected} onToggle={toggle} showEmpty />}
           {items?.some(item => item.personal) && (
             <div className="mt-3 text-[12px] text-t-ink-softer">
-              Personal files are unticked by default: they can hold tokens and go wherever the template is exported.
+              Personal items are unticked by default: they can hold tokens and go wherever the template is exported.
             </div>
           )}
         </div>

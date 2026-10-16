@@ -26,7 +26,7 @@ write(source, 'CLAUDE.md', '# Source rules\n')
 write(source, 'CLAUDE.local.md', 'personal\n')
 write(source, '.mcp.json', JSON.stringify({ mcpServers: { db: { command: 'pg' } } }))
 write(source, '.claude/settings.json', JSON.stringify({ permissions: { allow: ['Bash(npm test)'] }, enabledPlugins: { 'a@m': true, 'b@m': true, 'off@m': false }, mcpServers: { inline: { url: 'https://x' } }, model: 'opus' }))
-write(source, '.claude/settings.local.json', JSON.stringify({ env: { TOKEN: 'x' }, enabledPlugins: { 'local@m': true } }))
+write(source, '.claude/settings.local.json', JSON.stringify({ env: { TOKEN: 'x' }, enabledPlugins: { 'local@m': true }, mcpServers: { gh: { command: 'gh-mcp', env: { GITHUB_TOKEN: 'ghp_secret' } } } }))
 write(source, '.claude/skills/review/SKILL.md', '---\nname: review\ndescription: Reviews diffs\n---\n')
 write(source, '.claude/skills/review/checklist.md', '- tests\n')
 write(source, '.claude/agents/planner.md', '# planner\n')
@@ -54,6 +54,16 @@ check('items: a skill folder is a single item with its description', described.f
 check('items: settings lists the keys that are not plugins or MCP', described.find(item => item.id === 'settings').detail === 'permissions, model')
 check('items: local settings and CLAUDE.local.md are offered but marked personal',
   described.find(item => item.id === 'settings-local')?.personal === true && described.find(item => item.id === 'file:CLAUDE.local.md')?.personal === true)
+check('items: a plugin or MCP server only settings.local.json enables is personal',
+  described.find(item => item.id === 'plugin:local@m')?.personal === true && described.find(item => item.id === 'mcp:gh')?.personal === true)
+check('items: plugins and MCP servers from shared files are not personal',
+  !described.find(item => item.id === 'plugin:a@m').personal && !described.find(item => item.id === 'mcp:db').personal)
+const defaults = items.selectContent({ files, plugins }, described.filter(item => !item.personal).map(item => item.id))
+check('select: the default selection carries nothing from settings.local.json',
+  !defaults.files.some(file => file.path === '.claude/settings.local.json' || file.content.includes('ghp_secret')))
+const userSettings = items.describeConfig({ files: [{ path: '.claude/settings.json', content: JSON.stringify({ env: { KEY: 'sk' }, mcpServers: { s: { command: 'x' } } }) }], plugins: [] }, true)
+check('items: in the home folder, settings.json and its MCP servers are personal',
+  userSettings.find(item => item.id === 'settings')?.personal === true && userSettings.find(item => item.id === 'mcp:s')?.personal === true)
 
 const picked = items.selectContent({ files, plugins }, ['plugin:a@m', 'mcp:db', 'skill:review'])
 const pickedPaths = picked.files.map(file => file.path)
@@ -96,6 +106,17 @@ check('apply merge: a second run has nothing left to write', scaffold.planScaffo
 scaffold.applyScaffold(files, target, 'override')
 check('apply override: the template copy replaces the target', read(target, 'CLAUDE.md') === '# Source rules\n' && JSON.parse(read(target, '.claude/settings.json')).model === 'opus')
 
+const kept = path.join(tmp, 'kept')
+write(kept, '.claude/settings.json', JSON.stringify({ permissions: { allow: ['Read'] }, hooks: { Stop: [] }, model: 'sonnet', enabledPlugins: { 'z@m': true } }))
+scaffold.applyScaffold(picked.files, kept, 'override')
+const keptSettings = JSON.parse(read(kept, '.claude/settings.json'))
+check('apply override: a template trimmed to some plugins keeps the target\'s other settings',
+  keptSettings.model === 'sonnet' && keptSettings.hooks && JSON.stringify(keptSettings.permissions.allow) === '["Read"]' &&
+  keptSettings.enabledPlugins['a@m'] === true && keptSettings.enabledPlugins['z@m'] === true, JSON.stringify(keptSettings))
+scaffold.applyScaffold([{ path: '.claude/settings.json', content: JSON.stringify({ model: 'opus', permissions: { allow: ['Edit'] } }) }], kept, 'override')
+const overriddenSettings = JSON.parse(read(kept, '.claude/settings.json'))
+check('apply override: the template\'s values and arrays win', overriddenSettings.model === 'opus' && JSON.stringify(overriddenSettings.permissions.allow) === '["Edit"]')
+
 const hostile = [{ path: '../escape.md', content: 'x' }, { path: '/etc/evil', content: 'x' }, { path: 'src/app.ts', content: 'x' }]
 scaffold.applyScaffold(hostile, target, 'override')
 check('apply: paths outside the AI config set are never written', !fs.existsSync(path.join(tmp, 'escape.md')) && !fs.existsSync(path.join(target, 'src/app.ts')))
@@ -135,9 +156,16 @@ fs.symlinkSync('AGENTS.md', path.join(linked, 'CLAUDE.md'))
 fs.symlinkSync(path.join(outside, 'id_rsa'), path.join(linked, '.mcp.json'))
 fs.mkdirSync(path.join(linked, '.claude'))
 fs.symlinkSync(path.join(outside, 'id_rsa'), path.join(linked, '.claude/settings.json'))
+write(linked, 'shared-agents/reviewer.md', '# reviewer\n')
+fs.symlinkSync('../shared-agents', path.join(linked, '.claude/agents'))
+fs.symlinkSync('../AGENTS.md', path.join(linked, '.claude/rules.md'))
+fs.symlinkSync('.', path.join(linked, '.claude/loop'))
+fs.symlinkSync(path.join(outside, 'dir'), path.join(linked, '.claude/commands'))
 const linkedFiles = scaffold.captureFiles(linked)
 check('capture: a symlink inside the folder is read', linkedFiles.some(file => file.path === 'CLAUDE.md' && file.content === '# agents\n'))
-check('capture: symlinks leaving the folder are never read', !linkedFiles.some(file => file.content.includes('PRIVATE KEY')))
+check('capture: symlinks leaving the folder are never read', !linkedFiles.some(file => file.content.includes('PRIVATE KEY') || file.content === 'mine'))
+check('capture: symlinked files and folders under .claude that stay inside are read',
+  linkedFiles.some(file => file.path === '.claude/agents/reviewer.md') && linkedFiles.some(file => file.path === '.claude/rules.md'), linkedFiles.map(file => file.path).join(','))
 
 const trap = path.join(tmp, 'trap')
 fs.mkdirSync(trap)
@@ -168,6 +196,10 @@ process.env.HOME = home
 const homePaths = scaffold.captureFiles(home).map(file => file.path)
 check('user scope: capture reads only the Claude config in ~/.claude',
   JSON.stringify(homePaths) === JSON.stringify(['.claude/CLAUDE.md', '.claude/settings.json', '.claude/skills/tidy/SKILL.md']))
+const homeLink = path.join(tmp, 'home-link')
+fs.symlinkSync(home, homeLink)
+check('user scope: a path that reaches the home folder through a symlink gets the same limits',
+  JSON.stringify(scaffold.captureFiles(homeLink).map(file => file.path)) === JSON.stringify(homePaths))
 const homePlan = scaffold.planScaffold([{ path: 'CLAUDE.md', content: '# Rules\n' }, { path: '.mcp.json', content: '{}' }, { path: '.claude/projects/x', content: 'x' }], home, 'override')
 check('user scope: a project CLAUDE.md goes to ~/.claude/CLAUDE.md, the rest is skipped',
   JSON.stringify(homePlan) === JSON.stringify([{ path: '.claude/CLAUDE.md', action: 'overwrite' }, { path: '.mcp.json', action: 'skip' }, { path: '.claude/projects/x', action: 'skip' }]))

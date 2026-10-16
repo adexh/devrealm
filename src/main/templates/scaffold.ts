@@ -13,6 +13,7 @@ import {
   type TemplateKind,
   type TemplatePlugin,
 } from "../../shared/templates";
+import { isPlainObject, parseJsonObject } from "../claudeJson";
 
 const CLAUDE_DIR = ".claude";
 const ROOT_FILES = ["CLAUDE.md", "CLAUDE.local.md", "AGENTS.md", ".mcp.json"];
@@ -32,10 +33,6 @@ export const MARKETPLACE_SOURCE = /^(?:[\w.-]+\/[\w.-]+|https:\/\/[\w.\/~-]+(?:\
 
 type PlannedWrite = ScaffoldPlanEntry & { content?: string };
 
-export function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function toPosix(relativePath: string): string {
   return relativePath.split(path.sep).join("/");
 }
@@ -47,8 +44,21 @@ export function isScaffoldablePath(relativePath: string): boolean {
   return ROOT_FILES.includes(normalized) || normalized.startsWith(`${CLAUDE_DIR}/`);
 }
 
+/** The native realpath resolves symlinks and, on case-insensitive disks, the on-disk casing. */
+function canonicalPath(target: string): string {
+  try {
+    return fs.realpathSync.native(target);
+  } catch {
+    return path.resolve(target);
+  }
+}
+
+export function isSamePath(a: string, b: string): boolean {
+  return canonicalPath(a) === canonicalPath(b);
+}
+
 export function isUserHome(rootPath: string): boolean {
-  return path.resolve(rootPath) === path.resolve(os.homedir());
+  return isSamePath(rootPath, os.homedir());
 }
 
 export function isUserConfigPath(relativePath: string): boolean {
@@ -97,14 +107,21 @@ export function captureFiles(rootPath: string): TemplateFile[] {
     if (fs.existsSync(absolutePath)) add(absolutePath);
   }
 
+  // Symlinks are followed when they resolve inside the root; the visited set stops a link back to an ancestor looping.
+  const visited = new Set<string>();
   const walk = (dirPath: string) => {
+    const realDir = canonicalPath(dirPath);
+    if (visited.has(realDir)) return;
+    visited.add(realDir);
     for (const entry of fs.readdirSync(dirPath, { withFileTypes: true })) {
       const absolutePath = path.join(dirPath, entry.name);
       if (entry.name.startsWith(".")) continue;
-      if (entry.isDirectory()) {
+      const target = entry.isSymbolicLink() ? fs.statSync(absolutePath, { throwIfNoEntry: false }) : entry;
+      if (!target) continue;
+      if (target.isDirectory()) {
         const relativeDir = `${toPosix(path.relative(rootPath, absolutePath))}/`;
-        if (!IGNORED_DIRS.has(entry.name) && allowed(relativeDir)) walk(absolutePath);
-      } else if (entry.isFile()) {
+        if (!IGNORED_DIRS.has(entry.name) && allowed(relativeDir) && resolvesInside(rootPath, absolutePath)) walk(absolutePath);
+      } else if (target.isFile()) {
         add(absolutePath);
       }
     }
@@ -115,29 +132,25 @@ export function captureFiles(rootPath: string): TemplateFile[] {
   return files.sort((a, b) => a.path.localeCompare(b.path));
 }
 
-/** Existing values win; nested objects merge and arrays gain the template's missing entries. */
-export function mergeJson(existing: unknown, incoming: unknown): unknown {
+/**
+ * Nested objects merge in both modes, so keys only the target has always survive.
+ * In merge mode existing values win and arrays gain the template's missing entries;
+ * in override mode the template's values and arrays win.
+ */
+export function mergeJson(existing: unknown, incoming: unknown, mode: ScaffoldMode = "merge"): unknown {
   if (isPlainObject(existing) && isPlainObject(incoming)) {
     const merged: Record<string, unknown> = { ...existing };
     for (const [key, value] of Object.entries(incoming)) {
-      merged[key] = key in existing ? mergeJson(existing[key], value) : value;
+      merged[key] = key in existing ? mergeJson(existing[key], value, mode) : value;
     }
     return merged;
   }
+  if (mode === "override") return incoming;
   if (Array.isArray(existing) && Array.isArray(incoming)) {
     const seen = new Set(existing.map((item) => JSON.stringify(item)));
     return [...existing, ...incoming.filter((item) => !seen.has(JSON.stringify(item)))];
   }
   return existing;
-}
-
-export function parseJsonObject(content: string): Record<string, unknown> | null {
-  try {
-    const parsed = JSON.parse(content);
-    return isPlainObject(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
 }
 
 function planFile(file: TemplateFile, targetPath: string, mode: ScaffoldMode): PlannedWrite {
@@ -147,16 +160,18 @@ function planFile(file: TemplateFile, targetPath: string, mode: ScaffoldMode): P
 
   const current = fs.readFileSync(absolutePath, "utf8");
   if (current === file.content) return { path: file.path, action: "unchanged" };
-  if (mode === "override") return { path: file.path, action: "overwrite", content: file.content };
 
+  // A template's settings or .mcp.json can be trimmed to the chosen plugins and
+  // servers, so even override merges JSON rather than dropping the target's other keys.
   const existingJson = file.path.endsWith(".json") ? parseJsonObject(current) : null;
   const incomingJson = existingJson ? parseJsonObject(file.content) : null;
-  if (!existingJson || !incomingJson) return { path: file.path, action: "skip" };
+  if (!existingJson || !incomingJson) {
+    return mode === "override" ? { path: file.path, action: "overwrite", content: file.content } : { path: file.path, action: "skip" };
+  }
 
-  const merged = mergeJson(existingJson, incomingJson);
-  return JSON.stringify(merged) === JSON.stringify(existingJson)
-    ? { path: file.path, action: "unchanged" }
-    : { path: file.path, action: "merge", content: `${JSON.stringify(merged, null, 2)}\n` };
+  const merged = mergeJson(existingJson, incomingJson, mode);
+  if (JSON.stringify(merged) === JSON.stringify(existingJson)) return { path: file.path, action: "unchanged" };
+  return { path: file.path, action: mode === "override" ? "overwrite" : "merge", content: `${JSON.stringify(merged, null, 2)}\n` };
 }
 
 function planWrites(files: TemplateFile[], targetPath: string, mode: ScaffoldMode): PlannedWrite[] {

@@ -1,8 +1,9 @@
 import { execFile } from "child_process";
-import fs from "fs";
 import os from "os";
 import path from "path";
 import type { PluginInstallState, TemplatePlugin } from "../../shared/templates";
+import { readJsonObject } from "../claudeJson";
+import { loginShellCommand } from "../loginShell";
 import type { KnownMarketplaces } from "./items";
 import { isUserHome, MARKETPLACE_SOURCE, PLUGIN_ID } from "./scaffold";
 
@@ -11,16 +12,8 @@ const INSTALL_TIMEOUT_MS = 3 * 60 * 1000;
 
 type InstalledPlugins = Record<string, { scope?: string; projectPath?: string }[]>;
 
-function readJson<T>(fileName: string, pick: (raw: Record<string, unknown>) => unknown): T {
-  try {
-    return (pick(JSON.parse(fs.readFileSync(path.join(PLUGINS_DIR, fileName), "utf8"))) ?? {}) as T;
-  } catch {
-    return {} as T;
-  }
-}
-
 export function readKnownMarketplaces(): KnownMarketplaces {
-  return readJson<KnownMarketplaces>("known_marketplaces.json", (raw) => raw);
+  return readJsonObject(path.join(PLUGINS_DIR, "known_marketplaces.json")) as KnownMarketplaces;
 }
 
 function isInstalledFor(installs: InstalledPlugins, id: string, targetPath: string): boolean {
@@ -30,27 +23,31 @@ function isInstalledFor(installs: InstalledPlugins, id: string, targetPath: stri
 }
 
 export function planPlugins(plugins: TemplatePlugin[], targetPath: string): PluginInstallState[] {
-  const installs = readJson<InstalledPlugins>("installed_plugins.json", (raw) => raw.plugins);
+  const installs = (readJsonObject(path.join(PLUGINS_DIR, "installed_plugins.json")).plugins ?? {}) as InstalledPlugins;
   return plugins.map((plugin) => ({
     id: plugin.id,
     status: isInstalledFor(installs, plugin.id, targetPath) ? "present" : "pending",
   }));
 }
 
+// Every argument is a fixed word or a plugin id or marketplace source that
+// already passed PLUGIN_ID or MARKETPLACE_SOURCE, so it is safe in a shell string.
+const SHELL_SAFE_ARG = /^[\w.\/:@-]+$/;
+
 /**
- * A GUI-launched app has no shell PATH, and installers usually add `claude` to
- * it from .zshrc, so the CLI runs through an interactive login shell.
- * Session variables from a launching Claude Code are dropped so the CLI does not
- * think it is nested inside that session.
+ * Runs the CLI through the user's login shell, which is where `claude` is on
+ * PATH. Session variables from a launching Claude Code are dropped so the CLI
+ * does not think it is nested inside that session.
  */
 function runClaude(args: string[], cwd: string): Promise<void> {
+  if (!args.every((arg) => SHELL_SAFE_ARG.test(arg))) return Promise.reject(new Error("Refusing an unsafe claude argument."));
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
     if (key === "CLAUDECODE" || key.startsWith("CLAUDE_CODE_") || key.startsWith("ELECTRON_")) delete env[key];
   }
   const [command, commandArgs] = process.platform === "win32"
     ? ["claude.cmd", args]
-    : [process.env.SHELL || "/bin/zsh", ["-l", "-i", "-c", 'claude "$@"', "claude", ...args]];
+    : loginShellCommand(["claude", ...args].join(" "));
   return new Promise((resolve, reject) => {
     execFile(command, commandArgs, { cwd, env, timeout: INSTALL_TIMEOUT_MS, windowsHide: true, shell: process.platform === "win32" }, (error, _stdout, stderr) => {
       if (error) reject(new Error((stderr || error.message).trim().split("\n").pop() || "claude failed"));

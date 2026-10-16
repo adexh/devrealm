@@ -1,12 +1,13 @@
 import React, { useLayoutEffect, useRef, useState } from 'react'
 import { Mono } from '../../../components/ui'
 
-export function ScrollTable({ columns, head, children, count, maxHeight = 'max-h-52' }: {
+export function ScrollTable({ columns, head, children, count, bodyClassName = 'overflow-y-auto overflow-x-hidden max-h-52' }: {
   columns: string[]
   head: React.ReactNode
   children: React.ReactNode
   count: number
-  maxHeight?: string
+  /** The scrolling body's full class list, so its height stays a static utility. */
+  bodyClassName?: string
 }) {
   const bodyRef = useRef<HTMLDivElement>(null)
   const [scroll, setScroll] = useState({ overflowing: false, scrollbarWidth: 0 })
@@ -29,7 +30,7 @@ export function ScrollTable({ columns, head, children, count, maxHeight = 'max-h
       <div className="border-b border-t-line bg-t-panel" style={{ paddingRight: scroll.scrollbarWidth }}>
         <table className="w-full table-fixed text-[11px] border-collapse">{colgroup}<thead>{head}</thead></table>
       </div>
-      <div ref={bodyRef} className={`overflow-y-auto overflow-x-hidden ${maxHeight}`}>
+      <div ref={bodyRef} className={bodyClassName}>
         <table className="w-full table-fixed text-[11px] border-collapse">{colgroup}<tbody>{children}</tbody></table>
       </div>
       {scroll.overflowing && (

@@ -16,6 +16,7 @@ import { installPlugins, planPlugins, readKnownMarketplaces } from "./plugins";
 import {
   applyScaffold,
   captureFiles,
+  isUserHome,
   parseTemplateExport,
   planScaffold,
   serializeTemplate,
@@ -27,14 +28,16 @@ function captureContent(sourcePath: string): TemplateContent {
   return { files, plugins: capturePlugins(files, readKnownMarketplaces()) };
 }
 
+/** Without file contents, which only the main process needs and can run to 512KB a file. */
 function summarize(template: ScaffoldTemplate): TemplateSummary {
-  return { ...template, items: describeConfig(template) };
+  const { files: _files, ...summary } = template;
+  return { ...summary, items: describeConfig(template, template.kind === "user") };
 }
 
 export function registerTemplateIpcHandlers(): void {
   ipcMain.handle("templates:list", (): TemplateSummary[] => listTemplates().map(summarize));
 
-  ipcMain.handle("templates:capture", (_, sourcePath: string): TemplateItem[] => describeConfig(captureContent(sourcePath)));
+  ipcMain.handle("templates:capture", (_, sourcePath: string): TemplateItem[] => describeConfig(captureContent(sourcePath), isUserHome(sourcePath)));
 
   ipcMain.handle("templates:save", (_, request: SaveTemplateRequest): TemplateSummary => {
     const content = selectContent(captureContent(request.sourcePath), request.itemIds);

@@ -5,7 +5,8 @@ import type {
   TemplateItemGroup,
   TemplatePlugin,
 } from "../../shared/templates";
-import { isPlainObject, MARKETPLACE_SOURCE, parseJsonObject } from "./scaffold";
+import { enabledPluginIds as enabledIn, isPlainObject, parseJsonObject } from "../claudeJson";
+import { MARKETPLACE_SOURCE } from "./scaffold";
 
 const MCP_PATH = ".mcp.json";
 const LOCAL_INSTRUCTIONS_PATH = "CLAUDE.local.md";
@@ -48,14 +49,19 @@ function frontmatterDescription(content: string): string | undefined {
   return content.match(/^description:\s*(.+)$/m)?.[1].trim();
 }
 
-function mcpServers(files: TemplateFile[]): [string, unknown][] {
-  return [MCP_PATH, ...SETTINGS_FILES.map((settings) => settings.path)]
-    .flatMap((filePath) => objectEntries(fileContent(files, filePath)?.mcpServers));
+/** A server is personal when only settings.local.json defines it, since its config can carry tokens. */
+function mcpServers(files: TemplateFile[]): Map<string, { config: unknown; personal: boolean }> {
+  const servers = new Map<string, { config: unknown; personal: boolean }>();
+  for (const source of [{ path: MCP_PATH, personal: false }, ...SETTINGS_FILES]) {
+    for (const [name, config] of objectEntries(fileContent(files, source.path)?.mcpServers)) {
+      servers.set(name, { config, personal: source.personal && (servers.get(name)?.personal ?? true) });
+    }
+  }
+  return servers;
 }
 
-function enabledPluginIds(files: TemplateFile[]): string[] {
-  const merged = Object.assign({}, ...SETTINGS_FILES.map((settings) => Object.fromEntries(objectEntries(fileContent(files, settings.path)?.enabledPlugins))));
-  return Object.keys(merged).filter((id) => merged[id] === true);
+function enabledPluginIds(files: TemplateFile[], settingsFiles = SETTINGS_FILES): string[] {
+  return enabledIn(settingsFiles.map((settings) => fileContent(files, settings.path)));
 }
 
 function describeMcp(config: unknown): string | undefined {
@@ -65,8 +71,13 @@ function describeMcp(config: unknown): string | undefined {
   return typeof config.command === "string" ? `${config.command} ${args}`.trim() : undefined;
 }
 
-export function describeConfig({ files, plugins }: TemplateContent): TemplateItem[] {
+/**
+ * `userScope` is set for a capture of the home folder, where settings.json is the
+ * user's own and commonly holds env tokens, so it and its MCP servers start unticked.
+ */
+export function describeConfig({ files, plugins }: TemplateContent, userScope = false): TemplateItem[] {
   const items = new Map<string, TemplateItem>();
+  const sharedPlugins = new Set(enabledPluginIds(files, SETTINGS_FILES.filter((settings) => !settings.personal)));
 
   for (const file of files) {
     const id = fileItemId(file.path);
@@ -85,11 +96,18 @@ export function describeConfig({ files, plugins }: TemplateContent): TemplateIte
 
   for (const plugin of plugins) {
     const [name, marketplace] = plugin.id.split("@");
-    items.set(`plugin:${plugin.id}`, { id: `plugin:${plugin.id}`, group: "plugins", label: name, detail: `@${marketplace}` });
+    const personal = !sharedPlugins.has(plugin.id);
+    items.set(`plugin:${plugin.id}`, {
+      id: `plugin:${plugin.id}`,
+      group: "plugins",
+      label: name,
+      detail: personal ? `@${marketplace} · enabled in settings.local.json` : `@${marketplace}`,
+      personal,
+    });
   }
 
-  for (const [name, config] of mcpServers(files)) {
-    items.set(`mcp:${name}`, { id: `mcp:${name}`, group: "mcp", label: name, detail: describeMcp(config) });
+  for (const [name, { config, personal }] of mcpServers(files)) {
+    items.set(`mcp:${name}`, { id: `mcp:${name}`, group: "mcp", label: name, detail: describeMcp(config), personal: personal || userScope });
   }
 
   for (const settings of SETTINGS_FILES) {
@@ -100,7 +118,7 @@ export function describeConfig({ files, plugins }: TemplateContent): TemplateIte
       group: "settings",
       label: settings.path,
       detail: settings.personal ? `${otherKeys.join(", ")} · personal overrides` : otherKeys.join(", "),
-      personal: settings.personal,
+      personal: settings.personal || userScope,
     });
   }
 

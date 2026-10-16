@@ -20,7 +20,7 @@ import {
 } from "./constants";
 import { openInCodeEditor } from "./editorLauncher";
 import { listMcpServers } from "./mcpServers";
-import { isUserConfigPath, isUserHome } from "./templates/scaffold";
+import { isSamePath, isUserConfigPath, isUserHome } from "./templates/scaffold";
 import { appVersion, checkForUpdate, installUpdate } from "./updater";
 import {
   createWorkspaceExportPayload,
@@ -145,7 +145,7 @@ function resolveWorkspaceChildPath(rootPath: string, relativePath: string): stri
 
 function resolveTreeEntryPath(rootPath: string, relativePath: string, isDirectory: boolean): string {
   const absolutePath = resolveWorkspaceChildPath(rootPath, relativePath);
-  if (absolutePath === path.join(os.homedir(), ".claude")) {
+  if (isSamePath(absolutePath, path.join(os.homedir(), ".claude"))) {
     throw new Error("~/.claude holds every Claude Code setting and session, so it cannot be changed here.");
   }
   const rel = path.relative(path.resolve(rootPath), absolutePath).split(path.sep).join("/");

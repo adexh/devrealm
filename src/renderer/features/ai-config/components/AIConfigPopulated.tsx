@@ -1056,7 +1056,7 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
                     <ScrollTable
                       count={configuredDefinitions.length + customDefinitions.length}
                       columns={['w-[26%]', 'w-[26%]', '', 'w-56']}
-                      maxHeight="max-h-96"
+                      bodyClassName="overflow-y-auto overflow-x-hidden max-h-96"
                       head={(
                         <tr>
                           <th className="text-left px-3 py-2 font-medium text-t-ink-soft">Setting</th>
