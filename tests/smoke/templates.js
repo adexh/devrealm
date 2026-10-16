@@ -59,6 +59,14 @@ check('items: a plugin or MCP server only settings.local.json enables is persona
 check('items: plugins and MCP servers from shared files are not personal',
   !described.find(item => item.id === 'plugin:a@m').personal && !described.find(item => item.id === 'mcp:db').personal)
 const defaults = items.selectContent({ files, plugins }, described.filter(item => !item.personal).map(item => item.id))
+const overlap = [
+  { path: '.mcp.json', content: JSON.stringify({ mcpServers: { gh: { command: 'gh' } } }) },
+  { path: '.claude/settings.local.json', content: JSON.stringify({ mcpServers: { gh: { command: 'gh', env: { GITHUB_TOKEN: 'ghp_local' } } } }) },
+]
+const overlapItems = items.describeConfig({ files: overlap, plugins: [] })
+const overlapPicked = items.selectContent({ files: overlap, plugins: [] }, overlapItems.filter(item => !item.personal).map(item => item.id))
+check('select: a shared server also defined in settings.local.json never brings the local token',
+  overlapPicked.files.some(file => file.path === '.mcp.json') && !overlapPicked.files.some(file => file.content.includes('ghp_local')))
 check('select: the default selection carries nothing from settings.local.json',
   !defaults.files.some(file => file.path === '.claude/settings.local.json' || file.content.includes('ghp_secret')))
 const userSettings = items.describeConfig({ files: [{ path: '.claude/settings.json', content: JSON.stringify({ env: { KEY: 'sk' }, mcpServers: { s: { command: 'x' } } }) }], plugins: [] }, true)
@@ -156,14 +164,20 @@ fs.symlinkSync('AGENTS.md', path.join(linked, 'CLAUDE.md'))
 fs.symlinkSync(path.join(outside, 'id_rsa'), path.join(linked, '.mcp.json'))
 fs.mkdirSync(path.join(linked, '.claude'))
 fs.symlinkSync(path.join(outside, 'id_rsa'), path.join(linked, '.claude/settings.json'))
-write(linked, 'shared-agents/reviewer.md', '# reviewer\n')
-fs.symlinkSync('../shared-agents', path.join(linked, '.claude/agents'))
+write(linked, '.env', 'SECRET_ENV')
+write(linked, '.claude/real-agents/reviewer.md', '# reviewer\n')
+write(linked, 'shared/notes.md', 'not config')
+fs.symlinkSync('real-agents', path.join(linked, '.claude/agents'))
+fs.symlinkSync('../shared', path.join(linked, '.claude/skills'))
+fs.symlinkSync('../.env', path.join(linked, '.claude/notes.md'))
 fs.symlinkSync('../AGENTS.md', path.join(linked, '.claude/rules.md'))
 fs.symlinkSync('.', path.join(linked, '.claude/loop'))
 fs.symlinkSync(path.join(outside, 'dir'), path.join(linked, '.claude/commands'))
 const linkedFiles = scaffold.captureFiles(linked)
 check('capture: a symlink inside the folder is read', linkedFiles.some(file => file.path === 'CLAUDE.md' && file.content === '# agents\n'))
 check('capture: symlinks leaving the folder are never read', !linkedFiles.some(file => file.content.includes('PRIVATE KEY') || file.content === 'mine'))
+check('capture: a symlink to a file inside the folder that is not AI config is never read',
+  !linkedFiles.some(file => file.content === 'SECRET_ENV' || file.content === 'not config'), linkedFiles.map(file => file.path).join(','))
 check('capture: symlinked files and folders under .claude that stay inside are read',
   linkedFiles.some(file => file.path === '.claude/agents/reviewer.md') && linkedFiles.some(file => file.path === '.claude/rules.md'), linkedFiles.map(file => file.path).join(','))
 
@@ -178,6 +192,12 @@ const trapped = scaffold.applyScaffold([
   { path: 'CLAUDE.md', content: 'overwritten' },
   { path: 'AGENTS.md', content: 'planted' },
 ], trap, 'override')
+const inner = path.join(tmp, 'inner')
+write(inner, 'src/config.json', '{"keep":true}')
+fs.mkdirSync(path.join(inner, '.claude'))
+fs.symlinkSync('../src/config.json', path.join(inner, '.claude/settings.json'))
+scaffold.applyScaffold([{ path: '.claude/settings.json', content: '{"planted":true}' }], inner, 'override')
+check('apply: never writes through a symlink to a project file that is not AI config', read(inner, 'src/config.json') === '{"keep":true}')
 check('apply: never writes through a symlink that leaves the target',
   trapped.written.length === 0 && read(outside, 'dir/keep.txt') === 'mine' && read(outside, 'id_rsa') === 'PRIVATE KEY' &&
   !fs.existsSync(path.join(outside, 'dir/new.md')) && !fs.existsSync(path.join(outside, 'missing.txt')))
@@ -191,11 +211,15 @@ write(home, '.claude/hooks/state/run.json', 'runtime')
 write(home, '.claude/skills/.trash/old/SKILL.md', 'deleted')
 write(home, '.claude/projects/p/session.jsonl', 'secret')
 write(home, 'CLAUDE.md', 'not user config')
+write(home, '.ssh/id_rsa', 'HOME KEY')
+fs.symlinkSync('../../.ssh', path.join(home, '.claude/skills/ssh'))
 const realHome = process.env.HOME
 process.env.HOME = home
 const homePaths = scaffold.captureFiles(home).map(file => file.path)
 check('user scope: capture reads only the Claude config in ~/.claude',
   JSON.stringify(homePaths) === JSON.stringify(['.claude/CLAUDE.md', '.claude/settings.json', '.claude/skills/tidy/SKILL.md']))
+check('user scope: a symlink under ~/.claude to another part of the home folder is never read',
+  !scaffold.captureFiles(home).some(file => file.content === 'HOME KEY'))
 const homeLink = path.join(tmp, 'home-link')
 fs.symlinkSync(home, homeLink)
 check('user scope: a path that reaches the home folder through a symlink gets the same limits',
