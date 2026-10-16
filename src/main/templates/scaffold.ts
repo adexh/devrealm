@@ -70,20 +70,26 @@ function pathFilter(rootPath: string): (relativePath: string) => boolean {
   return (relativePath) => isScaffoldablePath(relativePath) && isUserConfigPath(relativePath);
 }
 
-/** Symlinks may point anywhere, so reads and writes must land inside the root once resolved. */
-function resolvesInside(rootPath: string, absolutePath: string): boolean {
+/**
+ * Symlinks may point anywhere, so a read or write must land, once resolved, on
+ * a path the scope allows. Inside the root is not enough: a link to the
+ * project's .env or to ~/.ssh is inside the root but is not AI config.
+ */
+function landsOnAllowedPath(rootPath: string, absolutePath: string, allowed: (relativePath: string) => boolean, isDirectory = false): boolean {
   let existing = absolutePath;
   while (!fs.lstatSync(existing, { throwIfNoEntry: false })) existing = path.dirname(existing);
   try {
-    const relative = path.relative(fs.realpathSync(rootPath), fs.realpathSync(existing));
-    return !relative.startsWith("..") && !path.isAbsolute(relative);
+    const resolved = path.join(fs.realpathSync(existing), path.relative(existing, absolutePath));
+    const relative = path.relative(fs.realpathSync(rootPath), resolved);
+    if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) return false;
+    return allowed(isDirectory ? `${toPosix(relative)}/` : toPosix(relative));
   } catch {
     return false;
   }
 }
 
-function readTextFile(rootPath: string, absolutePath: string): string | null {
-  if (!resolvesInside(rootPath, absolutePath)) return null;
+function readTextFile(rootPath: string, absolutePath: string, allowed: (relativePath: string) => boolean): string | null {
+  if (!landsOnAllowedPath(rootPath, absolutePath, allowed)) return null;
   const stat = fs.statSync(absolutePath);
   if (!stat.isFile() || stat.size > MAX_FILE_BYTES) return null;
   const content = fs.readFileSync(absolutePath, "utf8");
@@ -98,7 +104,7 @@ export function captureFiles(rootPath: string): TemplateFile[] {
   const add = (absolutePath: string) => {
     const relativePath = toPosix(path.relative(rootPath, absolutePath));
     if (!allowed(relativePath)) return;
-    const content = readTextFile(rootPath, absolutePath);
+    const content = readTextFile(rootPath, absolutePath, allowed);
     if (content !== null) files.push({ path: relativePath, content });
   };
 
@@ -107,7 +113,7 @@ export function captureFiles(rootPath: string): TemplateFile[] {
     if (fs.existsSync(absolutePath)) add(absolutePath);
   }
 
-  // Symlinks are followed when they resolve inside the root; the visited set stops a link back to an ancestor looping.
+  // Symlinks are followed when they resolve to an allowed path; the visited set stops a link back to an ancestor looping.
   const visited = new Set<string>();
   const walk = (dirPath: string) => {
     const realDir = canonicalPath(dirPath);
@@ -120,7 +126,7 @@ export function captureFiles(rootPath: string): TemplateFile[] {
       if (!target) continue;
       if (target.isDirectory()) {
         const relativeDir = `${toPosix(path.relative(rootPath, absolutePath))}/`;
-        if (!IGNORED_DIRS.has(entry.name) && allowed(relativeDir) && resolvesInside(rootPath, absolutePath)) walk(absolutePath);
+        if (!IGNORED_DIRS.has(entry.name) && allowed(relativeDir) && landsOnAllowedPath(rootPath, absolutePath, allowed, true)) walk(absolutePath);
       } else if (target.isFile()) {
         add(absolutePath);
       }
@@ -153,9 +159,9 @@ export function mergeJson(existing: unknown, incoming: unknown, mode: ScaffoldMo
   return existing;
 }
 
-function planFile(file: TemplateFile, targetPath: string, mode: ScaffoldMode): PlannedWrite {
+function planFile(file: TemplateFile, targetPath: string, mode: ScaffoldMode, allowed: (relativePath: string) => boolean): PlannedWrite {
   const absolutePath = path.join(targetPath, file.path);
-  if (!resolvesInside(targetPath, absolutePath)) return { path: file.path, action: "skip" };
+  if (!landsOnAllowedPath(targetPath, absolutePath, allowed)) return { path: file.path, action: "skip" };
   if (!fs.existsSync(absolutePath)) return { path: file.path, action: "create", content: file.content };
 
   const current = fs.readFileSync(absolutePath, "utf8");
@@ -180,7 +186,7 @@ function planWrites(files: TemplateFile[], targetPath: string, mode: ScaffoldMod
   return files
     .filter((file) => isScaffoldablePath(file.path))
     .map((file) => remapClaudeMd && file.path === "CLAUDE.md" ? { ...file, path: USER_CLAUDE_MD } : file)
-    .map((file) => allowed(file.path) ? planFile(file, targetPath, mode) : { path: file.path, action: "skip" });
+    .map((file) => allowed(file.path) ? planFile(file, targetPath, mode, allowed) : { path: file.path, action: "skip" });
 }
 
 export function planScaffold(files: TemplateFile[], targetPath: string, mode: ScaffoldMode): ScaffoldPlanEntry[] {
