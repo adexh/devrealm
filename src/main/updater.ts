@@ -4,6 +4,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { INSTALL_SCRIPT_URL, LATEST_RELEASE_API_URL } from "./constants";
+import { loginShellCommand } from "./loginShell";
 import type { UpdateCheckResult } from "../shared/types";
 
 type GithubRelease = { tag_name?: string; html_url?: string };
@@ -83,14 +84,13 @@ export function installUpdate(): Promise<{ message: string }> {
 
   fs.mkdirSync(path.dirname(UPDATE_LOG_PATH), { recursive: true });
   const log = fs.openSync(UPDATE_LOG_PATH, "w");
-  // A GUI-launched app lacks the PATH from the user's shell profile, and the
-  // installer needs git and node from nvm or Homebrew.
-  const userShell = process.env.SHELL || (process.platform === "darwin" ? "/bin/zsh" : "/bin/bash");
   const env: NodeJS.ProcessEnv = { ...process.env, DEVREALM_WAIT_PID: String(process.pid) };
   delete env.ELECTRON_RUN_AS_NODE;
+  // The installer needs git and node, which come from nvm or Homebrew via the user's profile.
+  const [shell, args] = loginShellCommand(`curl -fsSL ${INSTALL_SCRIPT_URL} | bash`);
 
   return new Promise((resolve) => {
-    const child = spawn(userShell, ["-l", "-i", "-c", `curl -fsSL ${INSTALL_SCRIPT_URL} | bash`], {
+    const child = spawn(shell, args, {
       env,
       cwd: os.homedir(),
       detached: true,

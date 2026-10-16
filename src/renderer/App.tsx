@@ -101,7 +101,7 @@ function MainApp() {
   const selectedWorkspace = workspaces.find(w => w.id === selectedWorkspaceId) ?? null
   const tabs: TabItem[] = [
     'Dashboard',
-    { id: 'AI Configs', label: 'AI' },
+    'AI Configs',
     'Terminals',
     'IDEs',
     ...markdownEditors.map(editor => ({

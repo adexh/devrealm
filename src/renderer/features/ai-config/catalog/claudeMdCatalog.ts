@@ -18,6 +18,14 @@ export type ClaudeMdFolderSlot = {
 
 export type ClaudeMdSlot = ClaudeMdRootSlot | ClaudeMdFolderSlot
 
+export const USER_CLAUDE_MD_SLOT: ClaudeMdRootSlot = {
+  kind: 'rootFile',
+  relativePath: '.claude/CLAUDE.md',
+  label: '~/.claude/CLAUDE.md',
+  description: 'Your personal instructions. Claude reads this in every project, before the project CLAUDE.md.',
+  starterTemplate: '# My Instructions\n\n<!-- Instructions Claude should follow in every project -->\n',
+}
+
 export const CLAUDE_MD_CATALOG: ClaudeMdSlot[] = [
   {
     kind: 'rootFile',

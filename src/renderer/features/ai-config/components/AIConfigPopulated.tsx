@@ -1,16 +1,22 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronRight, ChevronsDownUp, FilePlus, FileText, Folder, FolderPlus, RefreshCw, Trash2 } from 'lucide-react'
+import { BookmarkPlus, ChevronDown, ChevronRight, ChevronsDownUp, FilePlus, FileText, Folder, FolderInput, FolderPlus, PanelLeftClose, PanelLeftOpen, RefreshCw, Trash2 } from 'lucide-react'
 import { Tree, type NodeRendererProps, type TreeApi } from 'react-arborist'
-import type { ClaudeSettingsScope, ClaudeSettingsSnapshot, Workspace, Repo, ClaudeMdSnapshot, WorkspaceGithubChangeSummary, WorkspaceGithubDiff, WorkspaceFileTreeNode } from '../../../../shared/types'
+import type { ClaudeSettingsScope, ClaudeSettingsSnapshot, McpServer, Workspace, Repo, ClaudeMdSnapshot, WorkspaceGithubChangeSummary, WorkspaceGithubDiff, WorkspaceFileTreeNode } from '../../../../shared/types'
 import { useWorkspaceStore } from '../../../stores/workspaceStore'
 import { useNavigationStore } from '../../../stores/navigationStore'
+import { useUiStore } from '../../../stores/uiStore'
 import { Box, Btn, Chip, Heading, Label, Mono, FolderIcon, GitIcon, AIIcon, InfoPopover, Modal } from '../../../components/ui'
 import { CLAUDE_SETTINGS_CATALOG, CLAUDE_SETTINGS_MAP, type ClaudeSettingDefinition } from '../catalog/claudeSettingsCatalog'
 import { SettingCard } from './SettingCard'
 import { SettingEditor } from './SettingEditor'
 import { ClaudeMdSection } from './ClaudeMdSection'
-import { PluginsSkillsSection, type Plugin, type McpServer } from './PluginsSkillsSection'
+import { PluginsSkillsSection, type Plugin } from './PluginsSkillsSection'
+import { ScrollTable } from './ScrollTable'
+import { listMcpServers } from '../ipc/mcpServers'
 import { createWorkspaceFile, createWorkspaceFolder, deleteWorkspaceEntry, listWorkspaceFiles } from '../ipc/workspaceFiles'
+import { SaveTemplateModal } from './SaveTemplateModal'
+import { GLOBAL_AI_CONFIG_ID, GLOBAL_AI_CONFIG_LABEL } from '../constants/scope'
+import { TemplatesModal } from './TemplatesModal'
 
 type DraftState = {
   shared: Record<string, unknown>
@@ -175,12 +181,13 @@ function WorkspaceFileTreeRow({ node, style, dragHandle, onOpenFile, onRequestDe
   )
 }
 
-export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo, onSelect }: {
+export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo, onSelect, userScope = false }: {
   workspace: Workspace
   repos: Repo[]
   selectedRepo: Repo | null
   onSelectRepo: (id: string | null) => void
   onSelect: (id: string | null) => void
+  userScope?: boolean
 }) {
   const { workspaces, repos: allRepos, fetch: onRefresh } = useWorkspaceStore()
   const [showWSDropdown, setShowWSDropdown] = useState(false)
@@ -197,6 +204,11 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
   const [configureSearch, setConfigureSearch] = useState('')
   const [editor, setEditor] = useState<EditorState | null>(null)
   const [plugins, setPlugins] = useState<Plugin[]>([])
+  const [mcpServers, setMcpServers] = useState<McpServer[]>([])
+  const knowledgeBaseCollapsed = useUiStore(state => state.knowledgeBaseCollapsed)
+  const toggleKnowledgeBase = useUiStore(state => state.toggleKnowledgeBase)
+  const knowledgeBaseWidth = useUiStore(state => state.knowledgeBaseWidth)
+  const setKnowledgeBaseWidth = useUiStore(state => state.setKnowledgeBaseWidth)
   const [mdSnapshot, setMdSnapshot] = useState<ClaudeMdSnapshot | null>(null)
   const [viewingKey, setViewingKey] = useState<string | null>(null)
   const [githubSummary, setGithubSummary] = useState<WorkspaceGithubChangeSummary | null>(null)
@@ -220,6 +232,8 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
   const [deleteTarget, setDeleteTarget] = useState<WorkspaceFileTreeNode | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [templateModal, setTemplateModal] = useState<'save' | 'scaffold' | null>(null)
+  const [reloadToken, setReloadToken] = useState(0)
   const { openMarkdownEditor } = useNavigationStore()
 
   const activePath = selectedRepo?.path ?? workspace.rootPath
@@ -342,10 +356,11 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
 
       try {
         const claudeBridge = getClaudeBridge()
-        const [snapshot, pluginData, mdData] = await Promise.all([
+        const [snapshot, pluginData, mdData, servers] = await Promise.all([
           claudeBridge.readSettings(activePath),
           claudeBridge.pluginsAndSkills(activePath),
           claudeBridge.readMdFiles(activePath),
+          listMcpServers(activePath),
         ])
 
         if (cancelled) return
@@ -356,6 +371,7 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
         })
         setPlugins(pluginData)
         setMdSnapshot(mdData)
+        setMcpServers(servers)
       } catch (error) {
         if (cancelled) return
         setScreenError(error instanceof Error ? error.message : 'Failed to load Claude settings.')
@@ -366,7 +382,7 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
 
     void loadWorkspaceSettings()
     return () => { cancelled = true }
-  }, [activePath])
+  }, [activePath, reloadToken])
 
   const refreshFileTree = useCallback(async () => {
     if (!workspace.rootPath) {
@@ -393,6 +409,20 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
     void refreshFileTree()
   }, [refreshFileTree])
 
+  function startResize(event: React.PointerEvent<HTMLDivElement>) {
+    const handle = event.currentTarget
+    const startX = event.clientX
+    const startWidth = knowledgeBaseWidth
+    handle.setPointerCapture(event.pointerId)
+    const move = (moveEvent: PointerEvent) => setKnowledgeBaseWidth(startWidth + moveEvent.clientX - startX)
+    const stop = () => {
+      handle.removeEventListener('pointermove', move)
+      handle.removeEventListener('pointerup', stop)
+    }
+    handle.addEventListener('pointermove', move)
+    handle.addEventListener('pointerup', stop)
+  }
+
   function startCreate(type: 'file' | 'folder') {
     setCreating(type)
     setNewEntryName('')
@@ -409,7 +439,7 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
   // a selected folder is the target; a selected file targets its parent folder;
   // nothing selected targets the workspace root.
   function creationParentDir(): string {
-    if (!selectedNode) return ''
+    if (!selectedNode) return userScope ? '.claude' : ''
     if (selectedNode.type === 'directory') return selectedNode.relativePath
     const lastSlash = selectedNode.relativePath.lastIndexOf('/')
     return lastSlash === -1 ? '' : selectedNode.relativePath.slice(0, lastSlash)
@@ -481,19 +511,6 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
 
   const groupedAvailableDefinitions = useMemo(() => groupByCategory(availableDefinitions), [availableDefinitions])
 
-  const mcpServers = useMemo((): McpServer[] => {
-    const raw = settings?.shared.values.mcpServers ?? settings?.local.values.mcpServers
-    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return []
-    return Object.entries(raw as Record<string, unknown>).map(([name, cfg]) => {
-      const c = typeof cfg === 'object' && cfg !== null ? cfg as Record<string, unknown> : {}
-      const type = typeof c.type === 'string' ? c.type : 'stdio'
-      const command = type === 'sse'
-        ? String(c.url ?? '')
-        : [c.command, ...(Array.isArray(c.args) ? c.args : [])].filter(Boolean).join(' ')
-      return { name, type, command }
-    })
-  }, [settings])
-
   function startEditing(key: string) {
     const definition = CLAUDE_SETTINGS_MAP[key] ?? getCustomDefinition(key)
     setViewingKey(null)
@@ -554,7 +571,9 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
       })
       setSettings(snapshot)
       setDrafts(prev => ({ ...prev, [scope]: cloneObject(snapshot[scope].values) }))
-      setPlugins(await claudeBridge.pluginsAndSkills(activePath))
+      const [pluginData, servers] = await Promise.all([claudeBridge.pluginsAndSkills(activePath), listMcpServers(activePath)])
+      setPlugins(pluginData)
+      setMcpServers(servers)
       void loadGithubSummary()
       if (showGithubDiff) void loadGithubDiff()
       onRefresh()
@@ -614,11 +633,11 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
       <div className="px-6 py-3.5 border-b border-t-line flex items-center gap-3 flex-none">
         {workspace.github && githubSummary?.hasChanges && (
           <>
-            <Btn onClick={() => { setPushError(null); setShowPushModal(true) }}>Push</Btn>
+            <Btn onClick={() => { setPushError(null); setShowPushModal(true) }} className="shrink-0">Push</Btn>
             <button
               type="button"
               onClick={toggleGithubDiff}
-              className="h-7 flex items-center gap-1.5 px-2.5 bg-t-panel border border-t-line rounded cursor-pointer hover:bg-t-panel-alt"
+              className="h-7 shrink-0 flex items-center gap-1.5 px-2.5 bg-t-panel border border-t-line rounded cursor-pointer hover:bg-t-panel-alt whitespace-nowrap"
               title="Show git differences"
             >
               <GitIcon size={12} />
@@ -632,22 +651,24 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
           </>
         )}
         {workspace.github && githubStatusError && (
-          <Mono size={11} soft>{githubStatusError}</Mono>
+          <Mono size={11} soft className="min-w-0 truncate whitespace-nowrap">{githubStatusError}</Mono>
         )}
 
-        <Label>Workspace:</Label>
-        <div ref={wsDropdownRef} className="relative flex items-center gap-0.5">
+        <div className="flex items-center gap-1.5 min-w-0">
+        <Label className="shrink-0 whitespace-nowrap">Workspace:</Label>
+        <div ref={wsDropdownRef} className="relative flex items-center min-w-0 shrink">
           <div
             onClick={() => setShowWSDropdown(v => !v)}
-            className="h-7 flex items-center gap-1.5 px-2.5 bg-t-panel border border-t-line rounded-l cursor-pointer"
+            className="h-7 min-w-0 flex items-center gap-1.5 px-2.5 bg-t-panel border border-t-line rounded-l cursor-pointer"
+            title={workspace.name}
           >
-            <FolderIcon size={12} />
-            <span className="text-xs font-medium">{workspace.name}</span>
+            {userScope ? <AIIcon size={12} /> : <FolderIcon size={12} />}
+            <span className="text-xs font-medium whitespace-nowrap truncate max-w-56">{workspace.name}</span>
             <Mono size={11} soft>▾</Mono>
           </div>
           <div
             onClick={() => { onSelect(null); setShowWSDropdown(false) }}
-            className="h-7 flex items-center px-1.5 bg-t-panel border border-l-0 border-t-line rounded-r cursor-pointer text-t-ink-soft hover:text-t-ink"
+            className="h-7 shrink-0 flex items-center px-1.5 bg-t-panel border border-l-0 border-t-line rounded-r cursor-pointer text-t-ink-soft hover:text-t-ink"
             title="Clear workspace"
           >
             <span className="text-[11px] leading-none">✕</span>
@@ -657,6 +678,17 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
               className="absolute top-8 left-0 z-100 bg-t-bg min-w-50 p-1"
               style={{ boxShadow: '0 4px 16px rgba(0,0,0,0.15)' }}
             >
+              <div
+                onClick={() => { onSelect(GLOBAL_AI_CONFIG_ID); setShowWSDropdown(false) }}
+                className={userScope
+                  ? 'flex items-center gap-2 px-2.5 py-2 text-[13px] cursor-pointer rounded-[3px] bg-t-panel'
+                  : 'flex items-center gap-2 px-2.5 py-2 text-[13px] cursor-pointer rounded-[3px] bg-transparent'}
+              >
+                <AIIcon size={12} />
+                <span className="flex-1">{GLOBAL_AI_CONFIG_LABEL}</span>
+                <Mono size={10} soft>~/.claude</Mono>
+              </div>
+              <div className="my-1 border-t border-t-line" />
               {workspaces.map(ws => (
                 <div
                   key={ws.id}
@@ -673,16 +705,20 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
           )}
         </div>
 
-        <Label>Repo:</Label>
-        <div ref={repoDropdownRef} className="relative flex items-center gap-0.5">
+        </div>
+
+        {!userScope && (
+        <div className="flex items-center gap-1.5 min-w-0">
+        <Label className="shrink-0 whitespace-nowrap">Repo:</Label>
+        <div ref={repoDropdownRef} className="relative flex items-center min-w-0 shrink">
           <div
             onClick={() => repos.length > 0 && setShowRepoDropdown(v => !v)}
-            className={`h-7 flex items-center gap-1.5 px-2.5 bg-t-panel border border-t-line
+            className={`h-7 min-w-0 flex items-center gap-1.5 px-2.5 bg-t-panel border border-t-line
               ${selectedRepo ? 'rounded-l' : 'rounded'}
               ${repos.length > 0 ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
           >
             <GitIcon size={12} />
-            <span className="text-xs font-medium">
+            <span className="text-xs font-medium whitespace-nowrap truncate max-w-56">
               {selectedRepo ? selectedRepo.name : repos.length === 0 ? 'No repos' : 'All (workspace)'}
             </span>
             <Mono size={11} soft>▾</Mono>
@@ -690,7 +726,7 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
           {selectedRepo && (
             <div
               onClick={() => { onSelectRepo(null); setShowRepoDropdown(false) }}
-              className="h-7 flex items-center px-1.5 bg-t-panel border border-l-0 border-t-line rounded-r cursor-pointer text-t-ink-soft hover:text-t-ink"
+              className="h-7 shrink-0 flex items-center px-1.5 bg-t-panel border border-l-0 border-t-line rounded-r cursor-pointer text-t-ink-soft hover:text-t-ink"
               title="Clear repo"
             >
               <span className="text-[11px] leading-none">✕</span>
@@ -724,17 +760,62 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
           )}
         </div>
 
-        <Mono size={11} soft>· {selectedRepo ? 'Repository AI Settings' : 'Workspace AI settings'}</Mono>
+        </div>
+        )}
+
+        <div className="flex-1" />
+        {activePath && (
+          <>
+            <Btn onClick={() => setTemplateModal('scaffold')} className="shrink-0">
+              <FolderInput size={13} aria-hidden="true" />
+              Scaffold from Template
+            </Btn>
+            <Btn onClick={() => setTemplateModal('save')} className="shrink-0">
+              <BookmarkPlus size={13} aria-hidden="true" />
+              Save as Template
+            </Btn>
+          </>
+        )}
       </div>
 
       <div className="flex-1 min-h-0 flex">
-        <aside className="border-r border-t-line bg-t-bg flex-none w-72">
+        {knowledgeBaseCollapsed ? (
+        <aside className="border-r border-t-line bg-t-bg flex-none w-11 flex flex-col items-center pt-4">
+          <button
+            type="button"
+            onClick={toggleKnowledgeBase}
+            className="h-7 w-7 inline-flex items-center justify-center rounded text-t-ink-soft hover:text-t-ink hover:bg-t-panel-alt cursor-pointer"
+            title="Show AI Knowledge base"
+            aria-label="Show AI Knowledge base"
+          >
+            <PanelLeftOpen size={15} aria-hidden="true" />
+          </button>
+        </aside>
+        ) : (
+        <aside className="relative border-r border-t-line bg-t-bg flex-none" style={{ width: knowledgeBaseWidth }}>
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize AI Knowledge base"
+            title="Drag to resize"
+            onPointerDown={startResize}
+            className="absolute -right-1 top-0 bottom-0 w-2 z-10 cursor-col-resize hover:bg-t-line/60 active:bg-t-line"
+          />
           <div className="h-full flex flex-col min-h-0">
             <div className="border-b border-t-line px-5 pt-5 pb-2.5">
               <div className="flex items-center gap-2">
                 <Heading size={15}>AI Knowledge base</Heading>
                 <div className="flex-1" />
                 <Mono size={10} soft>{fileTree.length}</Mono>
+                <button
+                  type="button"
+                  onClick={toggleKnowledgeBase}
+                  className="h-7 w-7 -mr-1.5 inline-flex items-center justify-center rounded text-t-ink-soft hover:text-t-ink hover:bg-t-panel-alt cursor-pointer"
+                  title="Hide AI Knowledge base"
+                  aria-label="Hide AI Knowledge base"
+                >
+                  <PanelLeftClose size={15} aria-hidden="true" />
+                </button>
               </div>
               <div className="mt-2.5 flex items-center gap-1">
                 <button
@@ -804,12 +885,13 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
                   <Tree<WorkspaceFileTreeNode>
                     ref={treeRef}
                     data={fileTree}
-                    width={276}
+                    width={knowledgeBaseWidth - 12}
                     height={treeHeight}
                     rowHeight={26}
                     indent={16}
                     overscanCount={8}
                     openByDefault={false}
+                    initialOpenState={userScope ? { '.claude': true } : undefined}
                     onSelect={nodes => setSelectedNode(nodes.length ? nodes[nodes.length - 1].data : null)}
                   >
                     {(props) => (
@@ -824,6 +906,7 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
             </div>
           </div>
         </aside>
+        )}
 
         <div className="flex-1 overflow-auto p-5 flex flex-col gap-3.5">
         <Heading size={15}>AI Configurations</Heading>
@@ -895,7 +978,9 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
               workspacePath={activePath}
               onRefresh={async () => {
                 const claudeBridge = getClaudeBridge()
-                setPlugins(await claudeBridge.pluginsAndSkills(activePath))
+                const [pluginData, servers] = await Promise.all([claudeBridge.pluginsAndSkills(activePath), listMcpServers(activePath)])
+                setPlugins(pluginData)
+                setMcpServers(servers)
                 await loadGithubSummary()
               }}
             />
@@ -904,6 +989,7 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
               workspacePath={activePath}
               snapshot={mdSnapshot}
               loading={loading}
+              userScope={userScope}
             />
 
             <Box className="p-4 bg-t-panel">
@@ -924,7 +1010,7 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
               </div>
 
               <div className="grid gap-3 mt-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
-                {(['shared', 'local'] as ClaudeSettingsScope[]).map(fileScope => {
+                {((userScope ? ['shared'] : ['shared', 'local']) as ClaudeSettingsScope[]).map(fileScope => {
                   const file = settings?.[fileScope]
                   const count = Object.keys(drafts[fileScope] ?? {}).length
                   const isActive = scope === fileScope
@@ -967,83 +1053,81 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
                       Nothing configured yet. Use Configure to add settings.
                     </div>
                   ) : (
-                    <div className="border border-t-line rounded overflow-hidden">
-                      <div className="overflow-y-auto max-h-1/2">
-                        <table className="w-full text-[11px] border-collapse">
-                          <thead className="sticky top-0 bg-t-panel">
-                            <tr className="border-b border-t-line">
-                              <th className="text-left px-3 py-2 font-medium text-t-ink-soft">Setting</th>
-                              <th className="text-left px-3 py-2 font-medium text-t-ink-soft">Key</th>
-                              <th className="text-left px-3 py-2 font-medium text-t-ink-soft">Value</th>
-                              <th className="px-3 py-2" />
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {[...configuredDefinitions, ...customDefinitions].map((definition, i) => {
-                              const isViewing = viewingKey === definition.key
-                              const isEditingRow = editor?.key === definition.key
-                              const rawValue = currentDraft[definition.key]
-                              return (
-                                <React.Fragment key={definition.key}>
-                                  <tr className={`border-b border-t-line last:border-b-0 ${isEditingRow || isViewing ? 'bg-t-panel' : i % 2 === 0 ? 'bg-t-bg' : ''}`}>
-                                    <td className="px-3 py-2 text-t-ink font-medium max-w-32">
-                                      <span className="block truncate">{definition.label}</span>
-                                    </td>
-                                    <td className="px-3 py-2 max-w-40">
-                                      <Mono size={10} className="block truncate">{definition.key}</Mono>
-                                    </td>
-                                    <td className="px-3 py-2 text-t-ink-soft max-w-40">
-                                      <span className="block truncate">{formatPreview(rawValue)}</span>
-                                    </td>
-                                    <td className="px-3 py-2 whitespace-nowrap">
-                                      <div className="flex items-center gap-1 justify-end">
-                                        <Btn onClick={() => { setViewingKey(isViewing ? null : definition.key); if (!isViewing) cancelEditing() }}>View</Btn>
-                                        <Btn onClick={() => { isEditingRow ? cancelEditing() : startEditing(definition.key) }}>
-                                          {isEditingRow ? 'Cancel' : 'Edit'}
-                                        </Btn>
-                                        <Btn onClick={() => removeSetting(definition.key)}>Remove</Btn>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                  {isViewing && (
-                                    <tr className="border-b border-t-line last:border-b-0">
-                                      <td colSpan={4} className="px-3 py-2.5 bg-t-panel">
-                                        <div className="text-[11px] text-t-ink-soft mb-1.5 leading-normal">{definition.description}</div>
-                                        <pre className="m-0 p-2 rounded border border-t-line text-[10px] bg-t-bg whitespace-pre-wrap break-all font-mono">
-                                          {formatPreview(rawValue)}
-                                        </pre>
-                                      </td>
-                                    </tr>
-                                  )}
-                                  {isEditingRow && (
-                                    <tr className="border-b border-t-line last:border-b-0">
-                                      <td colSpan={4} className="px-3 py-2.5 bg-t-panel">
-                                        <div className="flex flex-col gap-2">
-                                          <SettingEditor
-                                            definition={definition}
-                                            value={editor!.value}
-                                            onChange={value => setEditor(prev => prev ? { ...prev, value, error: null } : prev)}
-                                          />
-                                          {editor?.error && (
-                                            <div className="text-[11px] text-[#e05252] px-2 py-1.5 border border-[#e05252] rounded-[3px]">
-                                              {editor.error}
-                                            </div>
-                                          )}
-                                          <div className="flex gap-2">
-                                            <Btn primary onClick={applySetting}>Apply</Btn>
-                                            <Btn onClick={cancelEditing}>Cancel</Btn>
-                                          </div>
+                    <ScrollTable
+                      count={configuredDefinitions.length + customDefinitions.length}
+                      columns={['w-[26%]', 'w-[26%]', '', 'w-56']}
+                      bodyClassName="overflow-y-auto overflow-x-hidden max-h-96"
+                      head={(
+                        <tr>
+                          <th className="text-left px-3 py-2 font-medium text-t-ink-soft">Setting</th>
+                          <th className="text-left px-3 py-2 font-medium text-t-ink-soft">Key</th>
+                          <th className="text-left px-3 py-2 font-medium text-t-ink-soft">Value</th>
+                          <th className="px-3 py-2"><span className="sr-only">Actions</span></th>
+                        </tr>
+                      )}
+                    >
+                        {[...configuredDefinitions, ...customDefinitions].map((definition, i) => {
+                          const isViewing = viewingKey === definition.key
+                          const isEditingRow = editor?.key === definition.key
+                          const rawValue = currentDraft[definition.key]
+                          return (
+                            <React.Fragment key={definition.key}>
+                              <tr className={`border-b border-t-line last:border-b-0 ${isEditingRow || isViewing ? 'bg-t-panel' : i % 2 === 0 ? 'bg-t-bg' : ''}`}>
+                                <td className="px-3 py-2 text-t-ink font-medium">
+                                  <span className="block truncate">{definition.label}</span>
+                                </td>
+                                <td className="px-3 py-2">
+                                  <Mono size={10} className="block truncate">{definition.key}</Mono>
+                                </td>
+                                <td className="px-3 py-2 text-t-ink-soft">
+                                  <span className="block truncate">{formatPreview(rawValue)}</span>
+                                </td>
+                                <td className="px-3 py-2 whitespace-nowrap">
+                                  <div className="flex items-center gap-1 justify-end">
+                                    <Btn onClick={() => { setViewingKey(isViewing ? null : definition.key); if (!isViewing) cancelEditing() }}>View</Btn>
+                                    <Btn onClick={() => { isEditingRow ? cancelEditing() : startEditing(definition.key) }}>
+                                      {isEditingRow ? 'Cancel' : 'Edit'}
+                                    </Btn>
+                                    <Btn onClick={() => removeSetting(definition.key)}>Remove</Btn>
+                                  </div>
+                                </td>
+                              </tr>
+                              {isViewing && (
+                                <tr className="border-b border-t-line last:border-b-0">
+                                  <td colSpan={4} className="px-3 py-2.5 bg-t-panel">
+                                    <div className="text-[11px] text-t-ink-soft mb-1.5 leading-normal">{definition.description}</div>
+                                    <pre className="m-0 p-2 rounded border border-t-line text-[10px] bg-t-bg whitespace-pre-wrap break-all font-mono">
+                                      {formatPreview(rawValue)}
+                                    </pre>
+                                  </td>
+                                </tr>
+                              )}
+                              {isEditingRow && (
+                                <tr className="border-b border-t-line last:border-b-0">
+                                  <td colSpan={4} className="px-3 py-2.5 bg-t-panel">
+                                    <div className="flex flex-col gap-2">
+                                      <SettingEditor
+                                        definition={definition}
+                                        value={editor!.value}
+                                        onChange={value => setEditor(prev => prev ? { ...prev, value, error: null } : prev)}
+                                      />
+                                      {editor?.error && (
+                                        <div className="text-[11px] text-[#e05252] px-2 py-1.5 border border-[#e05252] rounded-[3px]">
+                                          {editor.error}
                                         </div>
-                                      </td>
-                                    </tr>
-                                  )}
-                                </React.Fragment>
-                              )
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
+                                      )}
+                                      <div className="flex gap-2">
+                                        <Btn primary onClick={applySetting}>Apply</Btn>
+                                        <Btn onClick={cancelEditing}>Cancel</Btn>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          )
+                        })}
+                    </ScrollTable>
                   )}
                 </div>
               )}
@@ -1189,6 +1273,28 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
         )}
         </div>
       </div>
+
+      {activePath && templateModal === 'save' && (
+        <SaveTemplateModal
+          sourcePath={activePath}
+          sourceLabel={selectedRepo ? `${workspace.name} / ${selectedRepo.name}` : workspace.name}
+          kind={userScope ? 'user' : selectedRepo ? 'project' : 'workspace'}
+          onClose={() => setTemplateModal(null)}
+        />
+      )}
+
+      {activePath && templateModal === 'scaffold' && (
+        <TemplatesModal
+          targetPath={activePath}
+          targetLabel={selectedRepo ? `${workspace.name} / ${selectedRepo.name}` : workspace.name}
+          onClose={() => setTemplateModal(null)}
+          onInstalled={() => {
+            setReloadToken(token => token + 1)
+            void refreshFileTree()
+            void loadGithubSummary()
+          }}
+        />
+      )}
 
       {deleteTarget && (
         <Modal title="Delete" width={420} onClose={() => !deleting && setDeleteTarget(null)}>

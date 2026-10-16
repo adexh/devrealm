@@ -1,6 +1,7 @@
 import { ipcMain, shell, dialog, BrowserWindow, app } from "electron";
 import path from "path";
 import fs from "fs";
+import os from "os";
 import { spawn } from "child_process";
 import { randomUUID } from "crypto";
 import simpleGit from "simple-git";
@@ -18,6 +19,8 @@ import {
   marketplaceManifestUrl,
 } from "./constants";
 import { openInCodeEditor } from "./editorLauncher";
+import { listMcpServers } from "./mcpServers";
+import { isSamePath, isUserConfigPath, isUserHome } from "./templates/scaffold";
 import { appVersion, checkForUpdate, installUpdate } from "./updater";
 import {
   createWorkspaceExportPayload,
@@ -85,7 +88,11 @@ const WORKSPACE_TREE_IGNORED_DIRS = new Set([
   "coverage",
 ]);
 
-function getWorkspaceFileTree(rootPath: string, ignoredPaths: string[] = []): WorkspaceFileTreeNode[] {
+function getWorkspaceFileTree(
+  rootPath: string,
+  ignoredPaths: string[] = [],
+  include: (relativePath: string, isDirectory: boolean) => boolean = () => true,
+): WorkspaceFileTreeNode[] {
   const root = path.resolve(rootPath);
   if (!fs.existsSync(root)) return [];
   const ignoredPathSet = new Set(ignoredPaths.map((item) => path.resolve(item)));
@@ -94,6 +101,8 @@ function getWorkspaceFileTree(rootPath: string, ignoredPaths: string[] = []): Wo
     const entries = fs
       .readdirSync(dirPath, { withFileTypes: true })
       .filter((entry) => {
+        const relativePath = path.relative(root, path.join(dirPath, entry.name)).split(path.sep).join("/");
+        if (!include(relativePath, entry.isDirectory())) return false;
         if (!entry.isDirectory()) return true;
         if (WORKSPACE_TREE_IGNORED_DIRS.has(entry.name)) return false;
         return !ignoredPathSet.has(path.resolve(dirPath, entry.name));
@@ -130,6 +139,18 @@ function resolveWorkspaceChildPath(rootPath: string, relativePath: string): stri
   const rel = path.relative(root, absolutePath);
   if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) {
     throw new Error("Path must stay within the workspace.");
+  }
+  return absolutePath;
+}
+
+function resolveTreeEntryPath(rootPath: string, relativePath: string, isDirectory: boolean): string {
+  const absolutePath = resolveWorkspaceChildPath(rootPath, relativePath);
+  if (isSamePath(absolutePath, path.join(os.homedir(), ".claude"))) {
+    throw new Error("~/.claude holds every Claude Code setting and session, so it cannot be changed here.");
+  }
+  const rel = path.relative(path.resolve(rootPath), absolutePath).split(path.sep).join("/");
+  if (isUserHome(rootPath) && !isUserConfigPath(isDirectory ? `${rel}/` : rel)) {
+    throw new Error("Global user settings only manage CLAUDE.md, settings, hooks, agents, commands, skills, rules and output styles in ~/.claude.");
   }
   return absolutePath;
 }
@@ -438,6 +459,10 @@ export function registerIpcHandlers() {
   ipcMain.handle("repos:list", () => store.getRepos());
   ipcMain.handle("workspaces:list-files", (_, rootPath: string) => {
     if (!rootPath) return [];
+    if (isUserHome(rootPath)) {
+      return getWorkspaceFileTree(rootPath, [], (relativePath, isDirectory) =>
+        relativePath === ".claude" || isUserConfigPath(isDirectory ? `${relativePath}/` : relativePath));
+    }
     const workspace = store
       .getWorkspaces()
       .find((item) => item.rootPath && path.resolve(item.rootPath) === path.resolve(rootPath));
@@ -452,7 +477,7 @@ export function registerIpcHandlers() {
   ipcMain.handle(
     "workspaces:create-file",
     (_, { rootPath, relativePath }: { rootPath: string; relativePath: string }) => {
-      const absolutePath = resolveWorkspaceChildPath(rootPath, relativePath);
+      const absolutePath = resolveTreeEntryPath(rootPath, relativePath, false);
       if (fs.existsSync(absolutePath)) {
         throw new Error("A file or folder with that name already exists.");
       }
@@ -463,7 +488,7 @@ export function registerIpcHandlers() {
   ipcMain.handle(
     "workspaces:create-folder",
     (_, { rootPath, relativePath }: { rootPath: string; relativePath: string }) => {
-      const absolutePath = resolveWorkspaceChildPath(rootPath, relativePath);
+      const absolutePath = resolveTreeEntryPath(rootPath, relativePath, true);
       if (fs.existsSync(absolutePath)) {
         throw new Error("A file or folder with that name already exists.");
       }
@@ -473,10 +498,11 @@ export function registerIpcHandlers() {
   ipcMain.handle(
     "workspaces:delete-entry",
     (_, { rootPath, relativePath }: { rootPath: string; relativePath: string }) => {
-      const absolutePath = resolveWorkspaceChildPath(rootPath, relativePath);
-      if (!fs.existsSync(absolutePath)) {
+      const target = resolveWorkspaceChildPath(rootPath, relativePath);
+      if (!fs.existsSync(target)) {
         throw new Error("That file or folder no longer exists.");
       }
+      const absolutePath = resolveTreeEntryPath(rootPath, relativePath, fs.statSync(target).isDirectory());
       fs.rmSync(absolutePath, { recursive: true, force: true });
     },
   );
@@ -1017,6 +1043,10 @@ export function registerIpcHandlers() {
     },
   );
 
+  ipcMain.handle("claude:user-home", () => os.homedir());
+
+  ipcMain.handle("claude:mcp-servers", (_, rootPath: string) => listMcpServers(rootPath));
+
   ipcMain.handle("claude:read-settings", (_, workspacePath?: string) => {
     return getClaudeSettingsSnapshot(workspacePath);
   });
@@ -1258,7 +1288,7 @@ export function registerIpcHandlers() {
   ipcMain.handle(
     "claude:read-md-files",
     (_, workspacePath: string): ClaudeMdSnapshot => {
-      const rootFiles: ClaudeMdFile[] = ["CLAUDE.md", "CLAUDE.local.md"].map(
+      const rootFiles: ClaudeMdFile[] = ["CLAUDE.md", "CLAUDE.local.md", ".claude/CLAUDE.md"].map(
         (rel) => {
           const absolutePath = path.join(workspacePath, rel);
           return {

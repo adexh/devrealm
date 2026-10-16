@@ -11,6 +11,7 @@ npm run smoke:daemon     # the daemon over its socket
 npm run smoke:main       # the main-process DaemonClient under Electron
 npm run smoke:renderer   # a real BrowserWindow with the real preload
 npm run smoke:ides       # the IDEs feature's main-process modules, plus a live VS Code snapshot
+npm run smoke:templates  # AI scaffolding templates: capture, merge/override plans, export/import, plain Node
 ```
 
 ```
@@ -27,6 +28,7 @@ tests/
     renderer.js     the MessagePort data plane, split panes, theming
     ides.js         title parsing, --status parsing, process classification, live snapshot
     terminalLayout.js  drag-and-drop splits: drop zones, the pane tree, tab order
+    templates.js    template capture, scaffold plans in both modes, path safety, export round trip
   integration/
     terminalPanes.js   the Terminals screen's split panes, end to end in the app
   fixtures/

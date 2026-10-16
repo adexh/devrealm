@@ -176,7 +176,7 @@ export function MarkdownEditor({
           <RichTextPlugin
             contentEditable={
               <ContentEditable
-                className="overflow-y-auto scrollbar-thumb-rounded-full scrollbar scrollbar-thumb-slate-700 scrollbar-track-transparent pt-5.5 px-7 pb-7 outline-none leading-[1.7] text-sm caret-t-ink"
+                className="overflow-y-auto pt-5.5 px-7 pb-7 outline-none leading-[1.7] text-sm caret-t-ink"
                 aria-label="Markdown editor"
                 spellCheck
                 style={{ minHeight, maxHeight: contentMaxHeight ?? maxHeight }}
