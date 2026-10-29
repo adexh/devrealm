@@ -150,6 +150,12 @@ export function selectContent({ files, plugins }: TemplateContent, itemIds: stri
   const selected = new Set(itemIds);
   const keepMcp = (name: string) => selected.has(`mcp:${name}`);
   const keepPlugin = (id: string) => selected.has(`plugin:${id}`);
+  // A personal file only contributes servers and plugins nothing shared defines,
+  // so picking a shared server never carries a local override's token with it.
+  const servers = mcpServers(files);
+  const sharedPlugins = new Set(enabledPluginIds(files, SETTINGS_FILES.filter((settings) => !settings.personal)));
+  const keepPersonalMcp = (name: string) => keepMcp(name) && servers.get(name)?.personal === true;
+  const keepPersonalPlugin = (id: string) => keepPlugin(id) && !sharedPlugins.has(id);
 
   const kept = files.filter((file) => {
     const id = fileItemId(file.path);
@@ -161,8 +167,8 @@ export function selectContent({ files, plugins }: TemplateContent, itemIds: stri
     if (!values) continue;
     kept.push(...jsonFile(settings.path, {
       ...(selected.has(settings.itemId) ? values : {}),
-      enabledPlugins: pick(values.enabledPlugins, keepPlugin),
-      mcpServers: pick(values.mcpServers, keepMcp),
+      enabledPlugins: pick(values.enabledPlugins, settings.personal ? keepPersonalPlugin : keepPlugin),
+      mcpServers: pick(values.mcpServers, settings.personal ? keepPersonalMcp : keepMcp),
     }));
   }
 
