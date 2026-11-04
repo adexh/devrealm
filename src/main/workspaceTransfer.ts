@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import zlib from "zlib";
-import simpleGit from "simple-git";
+import { simpleGit } from "simple-git";
 import { WORKSPACE_EXPORT_VERSION } from "../shared/constants";
 import {
   CLAUDE_DIR,

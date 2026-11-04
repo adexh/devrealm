@@ -4,7 +4,7 @@ import fs from "fs";
 import os from "os";
 import { spawn } from "child_process";
 import { randomUUID } from "crypto";
-import simpleGit from "simple-git";
+import { simpleGit } from "simple-git";
 import * as store from "./store";
 import {
   AUTH_REDIRECT_PATH,

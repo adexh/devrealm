@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import simpleGit from "simple-git";
+import { simpleGit } from "simple-git";
 import * as store from "./store";
 import { normalizeGithubCloneUrl } from "./workspaceTransfer";
 import { DEFAULT_GIT_BRANCH } from "./constants";

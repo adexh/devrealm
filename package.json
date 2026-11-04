@@ -154,7 +154,7 @@
     "react": "^19.2.6",
     "react-arborist": "^3.10.1",
     "react-dom": "^19.2.6",
-    "simple-git": "^3.36.0",
+    "simple-git": "^4.0.2",
     "zustand": "^5.0.13"
   }
 }
