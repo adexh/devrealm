@@ -1,4 +1,4 @@
-name: npm audit
+name: Dependency audit
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  audit:
+  npm-audit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,3 +19,12 @@ jobs:
           node-version: 24.12.0
 
       - run: npm audit --audit-level=high --package-lock-only
+
+  osv-scanner:
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.7.0
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    with:
+      upload-sarif: ${{ github.event_name == 'push' }}
