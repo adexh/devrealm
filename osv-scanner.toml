@@ -1,0 +1,4 @@
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2027-02-01
+reason = "minimatch DoS only reachable through electron-builder at build time, matching our own globs. No electron-builder release uses minimatch 11 yet, and overriding it breaks glob@7 and filelist."
