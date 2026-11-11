@@ -13,7 +13,7 @@ const FILTERS: { id: DrawerFilter; label: string }[] = [
 ]
 
 export function RepoLauncherDrawer({ onLaunch }: { onLaunch: (target: LaunchTarget) => void }) {
-  const { targets, total, openCount } = useLaunchTargets()
+  const { root, targets, total, openCount } = useLaunchTargets()
   const activeWorkspaceId = useTerminalStore(state => state.activeWorkspaceId)
   const drawerWidth = useTerminalStore(state => state.drawerWidth)
   const query = useTerminalStore(state => state.drawerQuery)
@@ -89,13 +89,28 @@ export function RepoLauncherDrawer({ onLaunch }: { onLaunch: (target: LaunchTarg
           <p className="px-2 py-6 text-[12px] leading-4 text-tm-ink-dim text-center">
             Home shells belong to no workspace. Pick one above to launch from its repos.
           </p>
-        ) : targets.length === 0 ? (
-          <p className="px-2 py-6 text-[12px] leading-4 text-tm-ink-dim text-center">
-            No repos match in this workspace.
-          </p>
-        ) : targets.map(target => (
-          <RepoTargetRow key={target.id} target={target} onLaunch={() => onLaunch(target)} />
-        ))}
+        ) : (
+          <>
+            {root && (
+              <>
+                <p className="px-2 pt-1 text-[10px] leading-[14px] font-semibold uppercase tracking-widest text-tm-ink-dim">
+                  Workspace root
+                </p>
+                <RepoTargetRow target={root} onLaunch={() => onLaunch(root)} />
+                <p className="px-2 pt-2 text-[10px] leading-[14px] font-semibold uppercase tracking-widest text-tm-ink-dim">
+                  Repos
+                </p>
+              </>
+            )}
+            {targets.length === 0 ? (
+              <p className="px-2 py-6 text-[12px] leading-4 text-tm-ink-dim text-center">
+                No repos match in this workspace.
+              </p>
+            ) : targets.map(target => (
+              <RepoTargetRow key={target.id} target={target} onLaunch={() => onLaunch(target)} />
+            ))}
+          </>
+        )}
       </div>
 
       <div className="p-1 bg-tm-1 shrink-0">
