@@ -227,6 +227,16 @@ check('user scope: a path that reaches the home folder through a symlink gets th
 const homePlan = scaffold.planScaffold([{ path: 'CLAUDE.md', content: '# Rules\n' }, { path: '.mcp.json', content: '{}' }, { path: '.claude/projects/x', content: 'x' }], home, 'override')
 check('user scope: a project CLAUDE.md goes to ~/.claude/CLAUDE.md, the rest is skipped',
   JSON.stringify(homePlan) === JSON.stringify([{ path: '.claude/CLAUDE.md', action: 'overwrite' }, { path: '.mcp.json', action: 'skip' }, { path: '.claude/projects/x', action: 'skip' }]))
+const ws = path.join(home, 'ws')
+write(home, '.claude.json', JSON.stringify({ projects: {
+  [ws]: { mcpServers: { root: { command: 'r' } } },
+  [path.join(ws, 'repo')]: { mcpServers: { inner: { command: 'i' } } },
+  [`${ws}-other`]: { mcpServers: { sibling: { command: 's' } } },
+} }))
+const mcp = require(path.join(ROOT, 'dist/main/mcpServers.js'))
+const locals = mcp.listMcpServers(ws).filter(server => server.scope === 'local').map(server => `${server.name}@${server.folder}`)
+check('mcp: local servers of the folder and its subfolders are listed with their folder, siblings are not',
+  JSON.stringify(locals) === JSON.stringify(['root@', 'inner@repo']), locals.join(','))
 process.env.HOME = realHome
 
 fs.rmSync(tmp, { recursive: true, force: true })
