@@ -296,6 +296,7 @@ export const useTerminalStore = create<TerminalState>()(
         const running = get().sessions.filter(session =>
           session.workspaceId === input.workspaceId &&
           session.repoId === input.repoId &&
+          (input.repoId !== null || session.cwd === input.cwd) &&
           // An exited shell still has a tab, but reusing it would drop the user
           // into a dead terminal instead of starting work.
           session.exitCode === null

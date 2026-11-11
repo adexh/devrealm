@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Upload } from 'lucide-react'
+import { SquareCode, Terminal, Upload } from 'lucide-react'
 import type { Workspace, Repo, ClaudeSettingsSnapshot, ClaudeMdSnapshot } from '../../../../shared/types'
 import { useTheme } from '../../../theme'
 import {
@@ -10,9 +10,10 @@ import { fmtSize, relTime } from '../../../utils/format'
 import type { Plugin } from '../../ai-config/components/PluginsSkillsSection'
 import { useWorkspaceStore } from '../../../stores/workspaceStore'
 import { useNavigationStore } from '../../../stores/navigationStore'
+import { useTerminalStore } from '../../../stores/terminalStore'
 import { STALE_REPO_MS } from '../../../constants'
 import { deleteWorkspace, exportWorkspace } from '../ipc/workspaces'
-import { addRepo, checkPathExists, checkRepoAiCoverage, cloneRepo, deleteFolderAtPath, removeRepoFromWorkspace } from '../ipc/repos'
+import { addRepo, checkPathExists, checkRepoAiCoverage, cloneRepo, deleteFolderAtPath, openRepoInEditor, removeRepoFromWorkspace } from '../ipc/repos'
 import { CloneTerminal, type CloneTerminalHandle } from './CloneTerminal'
 import { RepoRow } from './RepoRow'
 import { ScanReposModal } from './ScanReposModal'
@@ -20,7 +21,8 @@ import { listClaudePluginsAndSkills, readClaudeMdFiles, readClaudeSettings } fro
 
 export function SingleWorkspace() {
   const { workspaces, repos: allRepos, fetch: onRefresh } = useWorkspaceStore()
-  const { selectedWorkspaceId, setSelectedWorkspaceId, navigateToAIConfig } = useNavigationStore()
+  const { selectedWorkspaceId, setSelectedWorkspaceId, navigateToAIConfig, navigateToTerminals } = useNavigationStore()
+  const openRepoSession = useTerminalStore(state => state.openRepoSession)
 
   const workspace = workspaces.find(w => w.id === selectedWorkspaceId)!
   const repos = allRepos.filter(repo => repo.workspaceId === workspace.id)
@@ -81,6 +83,21 @@ export function SingleWorkspace() {
     .slice(0, 8)
     .map(r => ({ label: r.name, value: r.size, size: fmtSize(r.size) }))
 
+  async function handleOpenInEditor() {
+    if (!workspace.rootPath) return
+    try {
+      await openRepoInEditor(workspace.rootPath)
+    } catch (e: unknown) {
+      setErrorMsg(e instanceof Error ? e.message : 'Failed to open workspace')
+    }
+  }
+
+  async function handleOpenInTerminal() {
+    if (!workspace.rootPath) return
+    navigateToTerminals()
+    await openRepoSession({ workspaceId: workspace.id, repoId: null, repoName: workspace.name, cwd: workspace.rootPath })
+  }
+
   async function handleExport() {
     try {
       await exportWorkspace(workspace.id)
@@ -136,6 +153,18 @@ export function SingleWorkspace() {
         <Heading size={14}>{workspace.name}</Heading>
         <Mono size={11} soft>· {repos.length} repos · {fmtSize(totalSize)} · last opened {relTime(Math.max(...repos.map(r => r.lastOpenedAt), workspace.createdAt))}</Mono>
         <div className="flex-1" />
+        {workspace.rootPath && (
+          <>
+            <Btn onClick={handleOpenInTerminal} className="px-2" style={{ padding: '6px 8px' }} title="Open a terminal in the workspace folder">
+              <Terminal size={14} aria-hidden="true" />
+              <span className="sr-only">Open terminal</span>
+            </Btn>
+            <Btn onClick={handleOpenInEditor} title="Open the workspace folder in your IDE">
+              <SquareCode size={14} aria-hidden="true" />
+              Open in IDE
+            </Btn>
+          </>
+        )}
         <Btn onClick={handleExport} className="px-2" style={{ padding: '6px 8px' }}>
           <Upload size={14} aria-hidden="true" />
           <span className="sr-only">Export workspace</span>
