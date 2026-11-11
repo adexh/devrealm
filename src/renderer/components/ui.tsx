@@ -30,7 +30,7 @@ export function Box({
 
 // ─── Btn ──────────────────────────────────────────────────────
 export function Btn({
-  children, primary = false, full = false, style = {}, onClick, className = '',
+  children, primary = false, full = false, style = {}, onClick, className = '', title,
 }: {
   children: React.ReactNode
   primary?: boolean
@@ -38,10 +38,12 @@ export function Btn({
   style?: CSSProperties
   onClick?: () => void
   className?: string
+  title?: string
 }) {
   return (
     <div
       onClick={onClick}
+      title={title}
       className={`inline-flex items-center justify-center gap-1.5 text-[13px] whitespace-nowrap cursor-pointer select-none px-3 py-1.5 rounded border
         ${primary ? 'border-t-accent-bg bg-t-accent-bg text-t-accent-ink font-semibold' : 'border-t-line bg-transparent text-t-ink font-medium'}
         ${full ? 'w-full' : ''}

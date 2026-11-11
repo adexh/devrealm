@@ -36,9 +36,14 @@ export function listMcpServers(rootPath: string): McpServer[] {
   const root = path.resolve(rootPath);
   const claudeJson = readJsonObject(path.join(home, ".claude.json"));
   const projects = isPlainObject(claudeJson.projects) ? claudeJson.projects : {};
-  const local = isPlainObject(projects[root]) ? projects[root].mcpServers : undefined;
+  const local = Object.entries(projects).flatMap(([projectPath, project]) => {
+    if (!path.isAbsolute(projectPath) || !isPlainObject(project)) return [];
+    const folder = path.relative(root, path.resolve(projectPath));
+    if (folder === ".." || folder.startsWith(`..${path.sep}`) || path.isAbsolute(folder)) return [];
+    return toServers(project.mcpServers, "local").map((server) => ({ ...server, folder }));
+  });
   return [
-    ...toServers(local, "local"),
+    ...local,
     ...toServers(readJsonObject(path.join(root, ".mcp.json")).mcpServers, "project"),
     ...toServers(claudeJson.mcpServers, "user"),
     ...pluginServers([path.join(home, ".claude"), path.join(root, ".claude")], home),

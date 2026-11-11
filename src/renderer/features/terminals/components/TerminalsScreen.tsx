@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { useUiStore } from '../../../stores/uiStore'
 import { useTerminalStore } from '../../../stores/terminalStore'
 import { useTerminalShortcuts } from '../hooks/useTerminalShortcuts'
+import { useLaunchTargets } from '../hooks/useLaunchTargets'
 import { DRAWER_WIDTH, HOME_WORKSPACE_ID, RAIL_WIDTH } from '../constants'
 import type { LaunchTarget } from '../types'
 import { RepoLauncherDrawer } from './RepoLauncherDrawer'
@@ -31,6 +32,7 @@ export function TerminalsScreen() {
   const setRailWidth = useTerminalStore(state => state.setRailWidth)
   const setDrawerWidth = useTerminalStore(state => state.setDrawerWidth)
   const columnsRef = useRef<HTMLDivElement>(null)
+  const { root, targets } = useLaunchTargets()
 
   // The daemon may already hold sessions from before this window opened.
   useEffect(() => { void init() }, [init])
@@ -52,20 +54,21 @@ export function TerminalsScreen() {
   const launch = useCallback((target: LaunchTarget) => {
     void openSession({
       workspaceId: target.workspaceId,
-      repoId: target.id,
+      repoId: target.kind === 'repo' ? target.id : null,
       repoName: target.name,
       cwd: target.path,
     })
   }, [openSession])
 
-  /** New Shell: another in the current repo, else the launcher, else home. */
   const newShell = useCallback(() => {
     if (!activeWorkspaceId || activeWorkspaceId === HOME_WORKSPACE_ID) {
       void openHomeSession()
       return
     }
+    if (!drawerOpen) toggleDrawer()
     if (!activeSession) {
-      if (!drawerOpen) toggleDrawer()
+      const target = targets.find(item => item.hasLocalPath) ?? root
+      if (target) launch(target)
       return
     }
     void openSession({
@@ -74,7 +77,7 @@ export function TerminalsScreen() {
       repoName: activeSession.repoName,
       cwd: activeSession.cwd,
     })
-  }, [activeWorkspaceId, activeSession, drawerOpen, toggleDrawer, openSession, openHomeSession])
+  }, [activeWorkspaceId, activeSession, targets, root, launch, drawerOpen, toggleDrawer, openSession, openHomeSession])
 
   useTerminalShortcuts(newShell)
 

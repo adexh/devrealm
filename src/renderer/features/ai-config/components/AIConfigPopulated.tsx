@@ -766,6 +766,14 @@ export function AIConfigPopulated({ workspace, repos, selectedRepo, onSelectRepo
         <div className="flex-1" />
         {activePath && (
           <>
+            <Btn
+              onClick={() => { setReloadToken(token => token + 1); void refreshFileTree(); void loadGithubSummary() }}
+              className="shrink-0"
+              title="Reload settings, CLAUDE.md, plugins, skills, MCP servers and files from disk"
+            >
+              <RefreshCw size={13} aria-hidden="true" />
+              Refresh
+            </Btn>
             <Btn onClick={() => setTemplateModal('scaffold')} className="shrink-0">
               <FolderInput size={13} aria-hidden="true" />
               Scaffold from Template

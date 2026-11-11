@@ -16,6 +16,7 @@ export type McpServer = {
   type: string
   command: string
   scope: McpServerScope
+  folder?: string
 }
 
 export type ClaudeSettingsScope = 'shared' | 'local'

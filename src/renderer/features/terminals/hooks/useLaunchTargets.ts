@@ -10,8 +10,9 @@ import type { LaunchTarget } from '../types'
  * Returns nothing until a workspace is picked, which is what keeps the drawer
  * empty on the landing screen.
  */
-export function useLaunchTargets(): { targets: LaunchTarget[]; total: number; openCount: number } {
+export function useLaunchTargets(): { root: LaunchTarget | null; targets: LaunchTarget[]; total: number; openCount: number } {
   const repos = useWorkspaceStore(state => state.repos)
+  const workspaces = useWorkspaceStore(state => state.workspaces)
   const activeWorkspaceId = useTerminalStore(state => state.activeWorkspaceId)
   const sessions = useTerminalStore(state => state.sessions)
   const query = useTerminalStore(state => state.drawerQuery)
@@ -33,6 +34,20 @@ export function useLaunchTargets(): { targets: LaunchTarget[]; total: number; op
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [repos, activeWorkspaceId, sessions])
 
+  const root = useMemo<LaunchTarget | null>(() => {
+    const workspace = workspaces.find(item => item.id === activeWorkspaceId)
+    if (!workspace?.rootPath) return null
+    return {
+      id: workspace.id,
+      workspaceId: workspace.id,
+      name: workspace.name,
+      path: workspace.rootPath,
+      kind: 'folder',
+      openCount: sessions.filter(session => session.workspaceId === workspace.id && session.repoId === null).length,
+      hasLocalPath: true,
+    }
+  }, [workspaces, activeWorkspaceId, sessions])
+
   const fuse = useMemo(
     () => new Fuse(scoped, { keys: ['name', 'path'], threshold: FUZZY_SEARCH_THRESHOLD }),
     [scoped]
@@ -52,6 +67,7 @@ export function useLaunchTargets(): { targets: LaunchTarget[]; total: number; op
   }, [fuse, query, filter, scoped, sessions])
 
   return {
+    root,
     targets,
     total: scoped.length,
     openCount: scoped.filter(target => target.openCount > 0).length,

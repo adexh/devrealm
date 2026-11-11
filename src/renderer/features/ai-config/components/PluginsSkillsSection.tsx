@@ -6,7 +6,7 @@ import { SkillCreatorModal } from './SkillCreatorModal'
 import { RemoveButton } from './RemoveButton'
 import { ScrollTable } from './ScrollTable'
 import { removePlugin, setPluginEnabled } from '../ipc/plugins'
-import { MCP_SCOPE_LABELS } from '../constants/mcp'
+import { MCP_SCOPE_LABELS, mcpAppliesTo } from '../constants/mcp'
 import type { McpServer } from '../../../../shared/types'
 
 
@@ -240,19 +240,20 @@ export function PluginsSkillsSection({
             ) : (
               <ScrollTable
                 count={mcpServers.length}
-                columns={['w-[32%]', 'w-16', 'w-18', '']}
+                columns={['w-[28%]', 'w-16', 'w-18', 'w-[24%]', '']}
                 head={(
                   <tr>
                     <th className="text-left px-2.5 py-2 font-medium text-t-ink-soft whitespace-nowrap">Name</th>
                     <th className="text-left px-2.5 py-2 font-medium text-t-ink-soft whitespace-nowrap">Type</th>
                     <th className="text-left px-2.5 py-2 font-medium text-t-ink-soft whitespace-nowrap">Scope</th>
+                    <th className="text-left px-2.5 py-2 font-medium text-t-ink-soft whitespace-nowrap">Applies to</th>
                     <th className="text-left px-2.5 py-2 font-medium text-t-ink-soft whitespace-nowrap">Command / URL</th>
                   </tr>
                 )}
               >
                 {mcpServers.map((server, i) => (
                   <tr
-                    key={`${server.scope}:${server.name}`}
+                    key={`${server.scope}:${server.folder ?? ''}:${server.name}`}
                     className={`border-b border-t-line last:border-b-0 ${i % 2 === 0 ? 'bg-t-bg' : ''}`}
                   >
                     <td className="px-2.5 py-2">
@@ -263,6 +264,9 @@ export function PluginsSkillsSection({
                     </td>
                     <td className="px-2.5 py-2">
                       <span className="text-[11px] text-t-ink-soft" title={MCP_SCOPE_LABELS[server.scope].hint}>{MCP_SCOPE_LABELS[server.scope].label}</span>
+                    </td>
+                    <td className="px-2.5 py-2">
+                      <span className="block truncate text-[11px] text-t-ink-soft" title={mcpAppliesTo(server)}>{mcpAppliesTo(server)}</span>
                     </td>
                     <td className="px-2.5 py-2">
                       <span className="block truncate font-mono text-[11px] text-t-ink" title={server.command}>{server.command}</span>
